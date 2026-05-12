@@ -9,7 +9,17 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSHealthShareUsageDescription": "Optimal Slepp leser pulsmålinger fra Apple Watch for mer presis søvnfase-deteksjon.",
+        "NSHealthUpdateUsageDescription": "Optimal Slepp skriver søvnanalyse til Apple Health etter fullført nattopptak.",
+        "NSMotionUsageDescription": "Optimal Slepp bruker akselerometeret for å registrere bevegelse under søvn."
+      },
+      "entitlements": {
+        "com.apple.developer.healthkit": true,
+        "com.apple.developer.healthkit.access": []
+      },
+      "bundleIdentifier": "com.andrenormann.optimalslepp"
     },
     "android": {
       "adaptiveIcon": {
@@ -19,7 +29,12 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.BODY_SENSORS",
+        "android.permission.health.READ_HEART_RATE"
+      ],
+      "package": "com.andrenormann.optimalslepp"
     },
     "web": {
       "output": "static",
@@ -27,6 +42,15 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "react-native-health",
+        {
+          "healthSharePermission": "Optimal Slepp leser pulsmålinger fra Apple Watch for mer presis søvnfase-deteksjon.",
+          "healthUpdatePermission": "Optimal Slepp skriver søvnanalyse til Apple Health etter fullført nattopptak."
+        }
+      ],
+      "./plugins/sleep-health-writer",
+      "./plugins/strip-aps-entitlement",
       [
         "expo-splash-screen",
         {

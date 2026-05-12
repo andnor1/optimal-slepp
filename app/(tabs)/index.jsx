@@ -1,0 +1,462 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// HJEM-SKJERM
+// ─────────────────────────────────────────────────────────────────────────────
+import { useEffect, useState, useCallback } from 'react';
+import {
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, Dimensions,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect, useRouter } from 'expo-router';
+import Svg, { Circle, Path } from 'react-native-svg';
+import {
+  toMin, nowMin, minToTime, minToDate, formatDur,
+  melatoninLevel,
+  optimizeSleep, calibrateFromLog, parseWindow,
+} from '../../src/engine/sleepEngine';
+import { Storage } from '../../src/utils/storage';
+
+// ─── Design tokens ────────────────────────────────────────────────────────────
+const T = {
+  bg: '#060914', surface: '#0C1220', elevated: '#111A2E',
+  border: 'rgba(255,255,255,.06)',
+  accent: '#5EE7B7', accentLo: 'rgba(94,231,183,.12)',
+  gold: '#F0B952', goldLo: 'rgba(240,185,82,.12)',
+  blue: '#4FA3E0',
+  red: '#E05C5C',
+  text: '#E2EAF4', sub: '#7A96B8', muted: '#3A4F6A',
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const DAYS = ['søn','man','tir','ons','tor','fre','lør'];
+
+function friendlyDate(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  return `${DAYS[d.getDay()]} ${d.getDate()}.${d.getMonth()+1}`;
+}
+
+// ─── Melatonin ring (SVG) ─────────────────────────────────────────────────────
+function MelRing({ shift = 0, amp = 1.0, size = 60 }) {
+  const now = new Date().getHours() + new Date().getMinutes() / 60;
+  const half = size / 2;
+
+  const points = Array.from({ length: 48 }, (_, i) => {
+    const h = i / 2;
+    const mel = melatoninLevel(h, shift, amp) / 100;
+    const angle = (h / 24) * 2 * Math.PI - Math.PI / 2;
+    const r = half * (0.35 + mel * 0.4);
+    return [half + r * Math.cos(angle), half + r * Math.sin(angle)];
+  });
+
+  const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ') + 'Z';
+
+  const nowAngle = (now / 24) * 2 * Math.PI - Math.PI / 2;
+  const nowMel = melatoninLevel(Math.floor(now), shift, amp) / 100;
+  const nowR = half * (0.35 + nowMel * 0.4);
+  const nx = half + nowR * Math.cos(nowAngle);
+  const ny = half + nowR * Math.sin(nowAngle);
+
+  return (
+    <Svg width={size} height={size}>
+      <Circle cx={half} cy={half} r={size * 0.17} fill={T.elevated} />
+      <Path d={d} fill={`${T.accent}20`} stroke={T.accent} strokeWidth={1.5} strokeLinejoin="round" />
+      <Circle cx={nx} cy={ny} r={4} fill={T.accent} />
+      <Circle cx={nx} cy={ny} r={8} fill={`${T.accent}30`} />
+    </Svg>
+  );
+}
+
+// ─── Quality arc (SVG) ───────────────────────────────────────────────────────
+function QArc({ value }) {
+  const col = value >= 75 ? T.accent : value >= 50 ? T.blue : T.gold;
+  const r = 20, cx = 26, circ = 2 * Math.PI * r;
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+      <Svg width={52} height={52} style={{ transform: [{ rotate: '-90deg' }] }}>
+        <Circle cx={cx} cy={cx} r={r} fill="none" stroke={T.elevated} strokeWidth={4} />
+        <Circle cx={cx} cy={cx} r={r} fill="none" stroke={col} strokeWidth={4}
+          strokeDasharray={`${(value / 100) * circ} ${circ}`} strokeLinecap="round" />
+      </Svg>
+      <View>
+        <Text style={{ fontSize: 20, fontWeight: '700', color: col, lineHeight: 24 }}>{value}%</Text>
+        <Text style={{ fontSize: 10, color: T.muted, letterSpacing: 1 }}>KVALITET</Text>
+      </View>
+    </View>
+  );
+}
+
+// ─── Micro components ─────────────────────────────────────────────────────────
+function Card({ children, accentColor, style }) {
+  return (
+    <View style={[
+      styles.card,
+      accentColor && { borderLeftWidth: 3, borderLeftColor: accentColor },
+      style,
+    ]}>
+      {children}
+    </View>
+  );
+}
+
+function Pill({ children, color = T.accent }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5,
+      backgroundColor: `${color}18`, borderWidth: 1, borderColor: `${color}30`,
+      borderRadius: 8, paddingVertical: 3, paddingHorizontal: 10 }}>
+      <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: color }} />
+      <Text style={{ fontSize: 11, color, fontWeight: '500' }}>{children}</Text>
+    </View>
+  );
+}
+
+function StatBox({ label, value, color = T.text }) {
+  return (
+    <View style={styles.statBox}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={[styles.statValue, { color }]}>{value}</Text>
+    </View>
+  );
+}
+
+function TimeBar({ sleepStart, sleepEnd, winStart, winEnd }) {
+  const span = winEnd - winStart;
+  const leftPct = ((sleepStart - winStart) / span) * 100;
+  const widthPct = ((sleepEnd - sleepStart) / span) * 100;
+  return (
+    <View style={{ marginBottom: 14 }}>
+      <View style={{ height: 5, backgroundColor: T.elevated, borderRadius: 3, overflow: 'hidden' }}>
+        <View style={{
+          position: 'absolute', left: `${leftPct}%`, width: `${widthPct}%`,
+          height: '100%', borderRadius: 3,
+          backgroundColor: T.accent,
+        }} />
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+        <Text style={styles.mono9}>{minToTime(winStart)}</Text>
+        <Text style={styles.mono9}>{minToTime(winEnd)}</Text>
+      </View>
+    </View>
+  );
+}
+
+function SleepHygieneTip({ hour }) {
+  const tips = [
+    { hours:[20,21,22], icon:'💡', title:'Dim lysene',       text:'Reduser lys nå for å la melatonin stige naturlig. Unngå sterkt tak-lys.' },
+    { hours:[21,22,23], icon:'📱', title:'Legg bort skjermen', text:'Blålys forsinker DLMO med opptil 1.5 timer. Bytt til nattmodus.' },
+    { hours:[6,7,8],    icon:'☀️', title:'Søk dagslys',      text:'Morgenlys hjelper å sette circadian-klokken for neste natt.' },
+    { hours:[14,15],    icon:'☕', title:'Siste kaffe nå',   text:'Koffein har 5-6t halveringstid. Etter kl 15 påvirker det nattesøvnen.' },
+    { hours:[13,14,15], icon:'😴', title:'Power-nap-vindu',  text:'Ettermiddagsdipet er et naturlig mini-søvnvindu. 20 minutter er ideelt.' },
+  ];
+  const tip = tips.find(t => t.hours.includes(hour));
+  if (!tip) return null;
+  return (
+    <Card style={{ backgroundColor: T.goldLo, borderColor: `${T.gold}30`, marginBottom: 12 }}>
+      <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+        <Text style={{ fontSize: 24 }}>{tip.icon}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 13, fontWeight: '600', color: T.gold, marginBottom: 4 }}>{tip.title}</Text>
+          <Text style={{ fontSize: 12, color: T.sub, lineHeight: 20 }}>{tip.text}</Text>
+        </View>
+      </View>
+    </Card>
+  );
+}
+
+// ─── Main screen ─────────────────────────────────────────────────────────────
+export default function HomeScreen() {
+  const router = useRouter();
+  const [now, setNow] = useState(nowMin());
+  const [clock, setClock] = useState(new Date());
+  const [results, setResults] = useState([]);
+  const [log, setLog] = useState([]);
+  const [calib, setCalib] = useState({ dlmoShift: 0, amplitude: 1.0 });
+  const [username, setUsername] = useState('');
+
+  const loadData = useCallback(async () => {
+    const [storedLog, windows, lastWoke, name] = await Promise.all([
+      Storage.getLog(),
+      Storage.getWindows(),
+      Storage.getLastWoke(),
+      Storage.getUsername(),
+    ]);
+    setLog(storedLog);
+    setUsername(name);
+    const c = calibrateFromLog(storedLog);
+    setCalib(c);
+    if (windows?.length && lastWoke) {
+      const parsed = windows.map(parseWindow);
+      const lastWokeMin = toMin(lastWoke.date, lastWoke.time);
+      const res = optimizeSleep(parsed, lastWokeMin, c);
+      setResults(res);
+    }
+  }, []);
+
+  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
+
+  useEffect(() => {
+    const t = setInterval(() => { setNow(nowMin()); setClock(new Date()); }, 60000);
+    return () => clearInterval(t);
+  }, []);
+
+  const nowHour = clock.getHours();
+  const greeting = nowHour < 5 ? 'God natt' : nowHour < 12 ? 'God morgen' : nowHour < 18 ? 'God dag' : 'God kveld';
+  const timeStr = `${String(clock.getHours()).padStart(2,'0')}:${String(clock.getMinutes()).padStart(2,'0')}`;
+
+  const nextSleep    = results.find(r => !r.skip && r.sleepStart > now);
+  const currentSleep = results.find(r => !r.skip && r.sleepStart <= now && r.sleepEnd >= now);
+  const isSleeping   = !!currentSleep;
+
+  const minsToSleep  = nextSleep ? nextSleep.sleepStart - now : null;
+  const hoursToSleep = minsToSleep !== null ? Math.floor(minsToSleep / 60) : null;
+  const minsRem      = minsToSleep !== null ? minsToSleep % 60 : null;
+
+  const lastEntry     = log.length ? log[log.length - 1] : null;
+  const hoursAwakeNow = lastEntry ? (now - lastEntry.sleepEnd) / 60 : null;
+  const restScore     = lastEntry ? Math.max(0, Math.min(100, Math.round(100 - (hoursAwakeNow || 0) * 4))) : null;
+  const melNow        = melatoninLevel(nowHour, calib.dlmoShift, calib.amplitude);
+
+  const upcoming = results.filter(r => !r.skip).slice(0, 3);
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+
+        {/* ── Header ── */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greeting}>{greeting}{username ? `, ${username}` : ''}</Text>
+            <Text style={styles.clock}>{timeStr}</Text>
+          </View>
+        </View>
+
+        {/* ── Hero card ── */}
+        {isSleeping ? (
+          <Card accentColor={T.accent} style={{ marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Pill color={T.accent}>Sover nå</Pill>
+                <Text style={[styles.bigTime, { marginTop: 8 }]}>
+                  {minToTime(currentSleep.sleepStart)}
+                  <Text style={{ color: T.muted, fontWeight: '300' }}> → </Text>
+                  {minToTime(currentSleep.sleepEnd)}
+                </Text>
+                <Text style={styles.cardSub}>
+                  Sover til {minToTime(currentSleep.sleepEnd)} · {currentSleep.cycles} sykluser
+                </Text>
+              </View>
+              <Text style={{ fontSize: 36 }}>😴</Text>
+            </View>
+            {/* Progress bar */}
+            <View style={{ height: 6, backgroundColor: T.elevated, borderRadius: 3, overflow: 'hidden' }}>
+              <View style={{
+                height: '100%', borderRadius: 3, backgroundColor: T.accent,
+                width: `${Math.max(0, Math.min(100, ((now - currentSleep.sleepStart) / (currentSleep.sleepEnd - currentSleep.sleepStart)) * 100))}%`,
+              }} />
+            </View>
+          </Card>
+
+        ) : nextSleep ? (
+          <Card style={{ marginBottom: 16, backgroundColor: T.elevated }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.mono10}>NESTE SØVN</Text>
+                <Text style={[styles.bigTime, { marginTop: 6 }]}>{minToTime(nextSleep.sleepStart)}</Text>
+                <Text style={styles.cardSub}>
+                  {friendlyDate(minToDate(nextSleep.sleepStart))} · {formatDur(nextSleep.duration)}
+                </Text>
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={styles.mono10}>OM</Text>
+                <Text style={{ fontSize: 28, fontWeight: '700', color: T.accent, lineHeight: 34, marginTop: 4 }}>
+                  {hoursToSleep}t{minsRem ? ` ${minsRem}m` : ''}
+                </Text>
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <StatBox label="SYKLUSER" value={`${nextSleep.cycles}×90m`} />
+              <StatBox label="KVALITET"  value={`${nextSleep.quality}%`}  color={nextSleep.quality >= 75 ? T.accent : T.gold} />
+              <StatBox label="MELATONIN" value={`${nextSleep.melOnset}%`} color={nextSleep.melOnset > 60 ? T.accent : T.gold} />
+            </View>
+          </Card>
+
+        ) : (
+          <Card style={{ marginBottom: 16, alignItems: 'center', paddingVertical: 32 }}>
+            <Text style={{ fontSize: 36, marginBottom: 12 }}>🌙</Text>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: T.text, marginBottom: 8 }}>Ingen plan ennå</Text>
+            <Text style={{ fontSize: 13, color: T.sub, textAlign: 'center', marginBottom: 20, lineHeight: 20 }}>
+              Legg inn sovevinduer for å få din personlige søvnplan
+            </Text>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/plan')} style={styles.primaryBtn}>
+              <Text style={styles.primaryBtnText}>Lag søvnplan</Text>
+            </TouchableOpacity>
+          </Card>
+        )}
+
+        {/* ── Melatonin + Restitusjon ── */}
+        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
+          <Card style={{ flex: 1, margin: 0 }}>
+            <Text style={[styles.mono10, { marginBottom: 8 }]}>MELATONIN NÅ</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View>
+                <Text style={{ fontSize: 24, fontWeight: '700', color: T.accent }}>{melNow}%</Text>
+                <Text style={{ fontSize: 11, color: T.sub }}>{melNow > 60 ? 'Stiger' : 'Lavt'}</Text>
+              </View>
+              <MelRing shift={calib.dlmoShift} amp={calib.amplitude} size={56} />
+            </View>
+          </Card>
+
+          <Card style={{ flex: 1, margin: 0 }}>
+            <Text style={[styles.mono10, { marginBottom: 8 }]}>RESTITUSJON</Text>
+            {restScore !== null ? (
+              <View>
+                <Text style={{ fontSize: 24, fontWeight: '700', color: restScore >= 70 ? T.accent : restScore >= 40 ? T.gold : T.red }}>
+                  {restScore}%
+                </Text>
+                <Text style={{ fontSize: 11, color: T.sub }}>
+                  {restScore >= 70 ? 'Godt hvilt' : restScore >= 40 ? 'Moderat' : hoursAwakeNow !== null ? `${Math.round(hoursAwakeNow)}t siden søvn` : ''}
+                </Text>
+              </View>
+            ) : (
+              <Text style={{ fontSize: 13, color: T.muted }}>Logg søvn for score</Text>
+            )}
+          </Card>
+        </View>
+
+        {/* ── Kommende søvn ── */}
+        {upcoming.length > 0 && (
+          <Card style={{ marginBottom: 12 }}>
+            <Text style={[styles.cardSub, { marginBottom: 12, fontWeight: '600' }]}>Kommende søvn</Text>
+            {upcoming.map((r, i) => (
+              <View key={i} style={[
+                { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+                i < upcoming.length - 1 && { paddingBottom: 10, marginBottom: 10, borderBottomWidth: 1, borderBottomColor: T.border },
+              ]}>
+                <View>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: T.text }}>
+                    {minToTime(r.sleepStart)} → {minToTime(r.sleepEnd)}
+                  </Text>
+                  <Text style={{ fontSize: 11, color: T.muted }}>
+                    {friendlyDate(minToDate(r.sleepStart))} · {formatDur(r.duration)}
+                  </Text>
+                </View>
+                <Pill color={r.quality >= 75 ? T.accent : T.gold}>{r.quality}%</Pill>
+              </View>
+            ))}
+          </Card>
+        )}
+
+        {/* ── Søvnhygiene-tips ── */}
+        <SleepHygieneTip hour={nowHour} />
+
+        {/* ── Hurtig-logg ── */}
+        <TouchableOpacity
+          onPress={() => router.push('/(tabs)/analyse')}
+          style={styles.ghostBtn}>
+          <Text style={styles.ghostBtnText}>+ Logg søvnøkt raskt</Text>
+        </TouchableOpacity>
+
+        <View style={{ height: 24 }} />
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const styles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: T.bg,
+  },
+  scroll: {
+    paddingHorizontal: 16,
+  },
+  header: {
+    paddingTop: 20,
+    paddingBottom: 16,
+  },
+  greeting: {
+    fontSize: 13,
+    color: T.sub,
+    marginBottom: 2,
+  },
+  clock: {
+    fontSize: 38,
+    fontWeight: '800',
+    letterSpacing: -1.5,
+    color: T.text,
+    lineHeight: 44,
+  },
+  card: {
+    backgroundColor: T.surface,
+    borderWidth: 1,
+    borderColor: T.border,
+    borderRadius: 20,
+    padding: 18,
+    marginBottom: 12,
+  },
+  bigTime: {
+    fontSize: 30,
+    fontWeight: '700',
+    letterSpacing: -1,
+    color: T.text,
+  },
+  cardSub: {
+    fontSize: 13,
+    color: T.sub,
+    marginTop: 2,
+  },
+  mono9: {
+    fontSize: 9,
+    color: T.muted,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: 0.5,
+  },
+  mono10: {
+    fontSize: 10,
+    color: T.muted,
+    letterSpacing: 1,
+    fontWeight: '600',
+  },
+  statBox: {
+    flex: 1,
+    backgroundColor: T.bg,
+    borderRadius: 10,
+    padding: 10,
+  },
+  statLabel: {
+    fontSize: 9,
+    color: T.muted,
+    letterSpacing: 1,
+    marginBottom: 2,
+    fontWeight: '500',
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: T.text,
+  },
+  primaryBtn: {
+    width: '100%',
+    paddingVertical: 15,
+    borderRadius: 16,
+    backgroundColor: T.accent,
+    alignItems: 'center',
+  },
+  primaryBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#060914',
+  },
+  ghostBtn: {
+    width: '100%',
+    paddingVertical: 13,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: T.border,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  ghostBtnText: {
+    fontSize: 14,
+    color: T.sub,
+  },
+});

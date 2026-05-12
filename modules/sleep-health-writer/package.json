@@ -1,0 +1,9 @@
+{
+  "name": "sleep-health-writer",
+  "version": "1.0.0",
+  "description": "Writes sleep analysis samples to Apple Health (iOS) and Health Connect (Android)",
+  "main": "index.js",
+  "expo": {
+    "fyi": "https://docs.expo.dev/modules/overview/"
+  }
+}

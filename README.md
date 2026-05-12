@@ -1,50 +1,113 @@
-# Welcome to your Expo app 👋
+# Optimal Slepp
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Søvnoptimering for skiftarbeidere. Appen modellerer kroppens melatoninkurve og beregner optimale sovetidspunkter basert på dine arbeidsvinduer og søvnhistorikk. Den registrerer søvn automatisk via mikrofon og akselerometer, og vekker deg i lett søvn med en gradvis stigende alarm.
 
-## Get started
+---
 
-1. Install dependencies
+## Funksjoner
 
-   ```bash
-   npm install
-   ```
+- **Søvnplanlegger** — beregner anbefalt legge- og opptid for hvert arbeidsvindu, basert på melatonin-modell og tidligere søvn
+- **Smart vekkerklokke** — vekker i lett søvn innenfor et konfigurerbart vindu (15/30/45 min før alarmen), med gradvis stigende lydvolum og haptikk
+- **Nattopptak** — mikrofon + akselerometer samples hvert 10. sekund hele natten; data beholdes lokalt
+- **Søvnfase-analyse** — klassifiserer dyp søvn, lett søvn, REM og våken basert på normalisert RMS + bevegelsesdata; generer søvnkurve-graf
+- **Apple Health / Google Fit** — valgfri integrasjon for pulsmålinger (krever native build, se under)
+- **Kalibrering** — etter 3+ loggede netter kalibreres personlig DLMO-fase og melatonin-amplitude
+- **Onboarding** — 6-stegs flyt som setter første sovepunkt uten konto
 
-2. Start the app
+---
 
-   ```bash
-   npx expo start
-   ```
+## Tech stack
 
-In the output, you'll find options to open the app in a
+| Område | Teknologi |
+|---|---|
+| Rammeverk | React Native via Expo SDK 54 |
+| Navigasjon | expo-router v6 (filbasert routing) |
+| Arkitektur | New Architecture (`newArchEnabled: true`) |
+| Audio-opptak | expo-av (`Audio.Recording`, metering-API) |
+| Alarm-lyd | expo-av (`Audio.Sound`, volum-ramp) |
+| Akselerometer | expo-sensors (`Accelerometer`, 2 Hz) |
+| Push-varsler | expo-notifications |
+| Haptikk | expo-haptics |
+| Skjerm alltid på | expo-keep-awake |
+| Animasjon | react-native-reanimated v4 |
+| SVG-grafikk | react-native-svg (melatonin-ring, søvnkurve, QArc) |
+| Lagring | @react-native-async-storage/async-storage |
+| Apple Health | react-native-health *(valgfri, krever native build)* |
+| Google Health Connect | react-native-health-connect *(valgfri, krever native build)* |
+| Språk | JavaScript (JSX) |
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+### Søvnmotor (`src/engine/sleepEngine.js`)
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+Ren JS-modul uten React-avhengigheter:
 
-## Get a fresh project
+- **Melatonin-modell** — kosinuskurve med personlig DLMO-faseforskyvning og amplitude
+- **Søvnoptimalisering** — velger beste innsovningstidspunkt per arbeidsvindu basert på melatonin-score, timer siden sist våken og tilgjengelig budsjetttid
+- **`analyseNightRecording`** — kombinerer mikrofon (RMS), akselerometer (bevegelse) og puls med lik vekting per tilgjengelig signal; klassifiserer faser via normalisert aktivitet + lokal varians
 
-When you're ready, run:
+---
 
-```bash
-npm run reset-project
+## Prosjektstruktur
+
+```
+app/
+  (tabs)/
+    index.jsx       # Hjem — plan, melatonin-ring, sovevinduer
+    plan.jsx        # Planlegger — dato/tid-input, søvnplan med QArc
+    alarm.jsx       # Vekkerklokke — alarm-oppsett, nattopptak, signalbadger
+    analyse.jsx     # Analyse — søvnkurve-graf, statistikk, søvnlogg
+    profil.jsx      # Profil — brukernavn, kalibrering, innstillinger
+  onboarding.jsx
+src/
+  engine/
+    sleepEngine.js  # Melatonin-modell, optimalisering, nattanalyse
+  hooks/
+    useSleepRecorder.js   # Mikrofon + akselerometer + valgfri puls
+    useSmartAlarm.js      # Alarmplanlegging, smart oppvåkning, lydramp
+  components/
+    TimePicker.jsx  # Avhengighetsfri tidvelger (▲/▼, 15-min steg)
+    DatePicker.jsx  # Avhengighetsfri datevelger (‹/› piler)
+  utils/
+    storage.js      # AsyncStorage-hjelpere (søvnlogg, alarmer, analyse)
+    healthKit.js    # Graceful wrapper for native helsemoduler
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+---
 
-## Learn more
+## Kom i gang
 
-To learn more about developing your project with Expo, look at the following resources:
+```bash
+npm install
+npx expo start
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Åpne i Expo Go (iOS/Android) eller simulator. Merk at nattopptak krever fysisk enhet med mikrofon.
 
-## Join the community
+### Apple Health / Google Fit (valgfritt)
 
-Join our community of developers creating universal apps.
+Krever native build og installerte pakker:
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+# iOS
+npm install react-native-health
+npx expo prebuild
+
+# Android
+npm install react-native-health-connect
+npx expo prebuild
+```
+
+Legg deretter til plugin i `app.json`:
+
+```json
+"plugins": [
+  ["react-native-health", {
+    "healthSharePermission": "Optimal Slepp bruker pulsmålinger for søvnanalyse"
+  }]
+]
+```
+
+---
+
+## Data og personvern
+
+All data lagres lokalt på enheten via AsyncStorage. Ingen server, ingen konto, ingen datadeling.
