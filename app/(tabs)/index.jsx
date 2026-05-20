@@ -8,6 +8,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import Svg, { Circle, Path } from 'react-native-svg';
+import * as Haptics from 'expo-haptics';
+import { EmptyState } from '../../src/components/EmptyState';
 import {
   toMin, nowMin, minToTime, minToDate, formatDur,
   melatoninLevel,
@@ -172,21 +174,25 @@ export default function HomeScreen() {
   const [username, setUsername] = useState('');
 
   const loadData = useCallback(async () => {
-    const [storedLog, windows, lastWoke, name] = await Promise.all([
-      Storage.getLog(),
-      Storage.getWindows(),
-      Storage.getLastWoke(),
-      Storage.getUsername(),
-    ]);
-    setLog(storedLog);
-    setUsername(name);
-    const c = calibrateFromLog(storedLog);
-    setCalib(c);
-    if (windows?.length && lastWoke) {
-      const parsed = windows.map(parseWindow);
-      const lastWokeMin = toMin(lastWoke.date, lastWoke.time);
-      const res = optimizeSleep(parsed, lastWokeMin, c);
-      setResults(res);
+    try {
+      const [storedLog, windows, lastWoke, name] = await Promise.all([
+        Storage.getLog(),
+        Storage.getWindows(),
+        Storage.getLastWoke(),
+        Storage.getUsername(),
+      ]);
+      setLog(storedLog);
+      setUsername(name);
+      const c = calibrateFromLog(storedLog);
+      setCalib(c);
+      if (windows?.length && lastWoke) {
+        const parsed = windows.map(parseWindow);
+        const lastWokeMin = toMin(lastWoke.date, lastWoke.time);
+        const res = optimizeSleep(parsed, lastWokeMin, c);
+        setResults(res);
+      }
+    } catch {
+      // Storage errors are non-fatal; UI shows empty state
     }
   }, []);
 
@@ -267,7 +273,7 @@ export default function HomeScreen() {
               <View style={{ alignItems: 'flex-end' }}>
                 <Text style={styles.mono10}>IN</Text>
                 <Text style={{ fontSize: 28, fontWeight: '700', color: T.accent, lineHeight: 34, marginTop: 4 }}>
-                  {hoursToSleep}t{minsRem ? ` ${minsRem}m` : ''}
+                  {hoursToSleep}h{minsRem ? ` ${minsRem}m` : ''}
                 </Text>
               </View>
             </View>
@@ -279,15 +285,14 @@ export default function HomeScreen() {
           </Card>
 
         ) : (
-          <Card style={{ marginBottom: 16, alignItems: 'center', paddingVertical: 32 }}>
-            <Text style={{ fontSize: 36, marginBottom: 12 }}>🌙</Text>
-            <Text style={{ fontSize: 16, fontWeight: '600', color: T.text, marginBottom: 8 }}>No plan yet</Text>
-            <Text style={{ fontSize: 13, color: T.sub, textAlign: 'center', marginBottom: 20, lineHeight: 20 }}>
-              Add sleep windows to get your personal sleep schedule
-            </Text>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/plan')} style={styles.primaryBtn}>
-              <Text style={styles.primaryBtnText}>Create sleep schedule</Text>
-            </TouchableOpacity>
+          <Card style={{ marginBottom: 16 }}>
+            <EmptyState
+              icon="moon"
+              title="No plan yet"
+              subtitle="Add sleep windows to get your personal sleep schedule"
+              ctaLabel="Create sleep schedule"
+              onCta={() => router.push('/(tabs)/plan')}
+            />
           </Card>
         )}
 
@@ -349,7 +354,10 @@ export default function HomeScreen() {
 
         {/* ── Hurtig-logg ── */}
         <TouchableOpacity
-          onPress={() => router.push('/(tabs)/analyse')}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push('/(tabs)/analyse');
+          }}
           style={styles.ghostBtn}>
           <Text style={styles.ghostBtnText}>+ Log sleep session quickly</Text>
         </TouchableOpacity>

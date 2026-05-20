@@ -6,6 +6,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
   Switch, StyleSheet, Alert,
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { calibrateFromLog } from '../../src/engine/sleepEngine';
@@ -77,6 +78,7 @@ export default function ProfilScreen() {
   }, []));
 
   const saveEditing = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const trimmed = tmpName.trim();
     setName(trimmed);
     setEditing(false);
@@ -89,6 +91,7 @@ export default function ProfilScreen() {
   };
 
   const confirmClearLog = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Alert.alert(
       'Delete sleep history',
       'This deletes all logged sleep sessions and resets the calibration. Cannot be undone.',
@@ -141,7 +144,7 @@ export default function ProfilScreen() {
               </Text>
             </View>
             <TouchableOpacity
-              onPress={editing ? saveEditing : () => setEditing(true)}
+              onPress={editing ? saveEditing : () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setEditing(true); }}
               style={s.editBtn}>
               <Text style={s.editBtnText}>{editing ? 'Save' : 'Edit'}</Text>
             </TouchableOpacity>

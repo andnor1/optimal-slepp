@@ -8,6 +8,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import { EmptyState } from '../../src/components/EmptyState';
 import Svg, { Circle, Path, Line, Text as SvgText } from 'react-native-svg';
 import TimePicker from '../../src/components/TimePicker';
 import DatePicker  from '../../src/components/DatePicker';
@@ -229,6 +231,7 @@ function QuickLogModal({ visible, onSave, onClose }) {
   const [end,   setEnd]   = useState('07:00');
 
   const save = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const s = toMin(date, start);
     let e = toMin(date, end);
     if (e <= s) e += 1440;
@@ -306,17 +309,14 @@ export default function AnalyseScreen() {
   if (log.length === 0 && !lastAnalysis) return (
     <SafeAreaView style={s.safe}>
       <View style={s.scroll}>
-        <Text style={s.title}>Analysis</Text>
-        <View style={{ alignItems:'center', paddingVertical:60 }}>
-          <Text style={{ fontSize:48, marginBottom:16 }}>📊</Text>
-          <Text style={{ fontSize:15, color:T.sub, marginBottom:8 }}>No data yet</Text>
-          <Text style={{ fontSize:13, color:T.muted, textAlign:'center', marginBottom:28, lineHeight:20 }}>
-            Log some sleep sessions to see patterns and statistics
-          </Text>
-          <TouchableOpacity onPress={() => setShowLog(true)} style={s.primaryBtn}>
-            <Text style={s.primaryBtnText}>Log first session</Text>
-          </TouchableOpacity>
-        </View>
+        <Text style={[s.title, { paddingTop: 20, marginBottom: 8 }]}>Analysis</Text>
+        <EmptyState
+          icon="chart"
+          title="No data yet"
+          subtitle="Log some sleep sessions to see patterns and statistics"
+          ctaLabel="Log first session"
+          onCta={() => setShowLog(true)}
+        />
       </View>
       <QuickLogModal visible={showLog} onSave={handleSave} onClose={() => setShowLog(false)} />
     </SafeAreaView>
@@ -339,7 +339,9 @@ export default function AnalyseScreen() {
 
         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingTop:20, marginBottom:20 }}>
           <Text style={s.title}>Analysis</Text>
-          <TouchableOpacity onPress={() => setShowLog(true)} style={s.logBtn}>
+          <TouchableOpacity
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowLog(true); }}
+            style={s.logBtn}>
             <Text style={s.logBtnText}>+ Log session</Text>
           </TouchableOpacity>
         </View>
@@ -390,8 +392,8 @@ export default function AnalyseScreen() {
             <Text style={[s.mono10, { marginBottom:12 }]}>PERSONAL CALIBRATION</Text>
             <View style={{ flexDirection:'row', gap:10, marginBottom:8 }}>
               {[
-                ['NIGHTS',    calib.dataPoints,                                                    T.accent],
-                ['DLMO-FASE', `${calib.dlmoShift >= 0 ? '+' : ''}${Math.round(calib.dlmoShift * 10) / 10}t`, T.text],
+                ['NIGHTS',     calib.dataPoints,                                                     T.accent],
+                ['DLMO PHASE', `${calib.dlmoShift >= 0 ? '+' : ''}${Math.round(calib.dlmoShift * 10) / 10}h`, T.text],
                 ['AMPLITUDE', `${Math.round(calib.amplitude * 100)}%`, calib.amplitude > 0.8 ? T.accent : T.gold],
               ].map(([l, v, c]) => (
                 <View key={l} style={s.statBox}>

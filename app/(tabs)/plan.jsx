@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import Svg, { Circle } from 'react-native-svg';
 import TimePicker from '../../src/components/TimePicker';
 import DatePicker  from '../../src/components/DatePicker';
@@ -143,6 +144,7 @@ export default function PlanScreen() {
   }, []));
 
   const addWindow = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const w = { id: Date.now(), date: localDate(1), startTime:'22:00', endTime:'06:00', anchor:'none' };
     const next = [...windows, w];
     setWindows(next);
@@ -150,6 +152,7 @@ export default function PlanScreen() {
   };
 
   const removeWindow = (id) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const next = windows.filter(x => x.id !== id);
     setWindows(next);
     Storage.saveWindows(next);
@@ -162,6 +165,7 @@ export default function PlanScreen() {
   };
 
   const calculate = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await Storage.saveLastWoke(lwd, lwt);
     const lastWokeMin = toMin(lwd, lwt);
     const parsed = windows.map(parseWindow);

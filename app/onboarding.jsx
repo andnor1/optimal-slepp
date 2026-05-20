@@ -1,13 +1,14 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// ONBOARDING FLOW  –  6 steps with progress bar and animation
+// ONBOARDING FLOW  –  6 steps with progress bar and smooth animations
 // ─────────────────────────────────────────────────────────────────────────────
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, TextInput, StyleSheet,
   Dimensions, Animated, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import TimePicker from '../src/components/TimePicker';
 import { localDate } from '../src/engine/sleepEngine';
 import { Storage } from '../src/utils/storage';
@@ -21,15 +22,13 @@ const T = {
   text:'#E2EAF4', sub:'#7A96B8', muted:'#3A4F6A',
 };
 
-const { height: SCREEN_H } = Dimensions.get('window');
-
 const STEPS = [
   {
     id:'welcome',
     icon:'🌙',
     title:'Welcome to\nOptimal Slepp',
     sub:'Sleep optimization for those who don\'t sleep at the same time every day.',
-    cta:'Get started',
+    cta:'Get started →',
   },
   {
     id:'problem',
@@ -82,79 +81,118 @@ export default function OnboardingScreen() {
   const [name, setName] = useState('');
   const [woke, setWoke] = useState('08:00');
 
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-  const slideAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim     = useRef(new Animated.Value(1)).current;
+  const slideAnim    = useRef(new Animated.Value(0)).current;
+  const iconScale    = useRef(new Animated.Value(1)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const pulseLoop    = useRef(null);
 
   const current = STEPS[step];
   const isLast  = step === STEPS.length - 1;
   const prog    = step / (STEPS.length - 1);
 
-  const animateTransition = (callback) => {
+  // Animate progress bar smoothly
+  useEffect(() => {
+    Animated.spring(progressAnim, {
+      toValue: prog,
+      tension: 60,
+      friction: 12,
+      useNativeDriver: false,
+    }).start();
+  }, [prog]);
+
+  // Pulse animation for welcome icon
+  useEffect(() => {
+    if (step === 0) {
+      pulseLoop.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(iconScale, { toValue: 1.12, duration: 2000, useNativeDriver: true }),
+          Animated.timing(iconScale, { toValue: 1.0,  duration: 2000, useNativeDriver: true }),
+        ])
+      );
+      pulseLoop.current.start();
+    } else {
+      pulseLoop.current?.stop();
+      Animated.spring(iconScale, { toValue: 1, tension: 100, friction: 8, useNativeDriver: true }).start();
+    }
+    return () => pulseLoop.current?.stop();
+  }, [step]);
+
+  const animateTransition = (callback, dir = 1) => {
     Animated.parallel([
-      Animated.timing(fadeAnim,  { toValue:0, duration:150, useNativeDriver:true }),
-      Animated.timing(slideAnim, { toValue:-20, duration:150, useNativeDriver:true }),
+      Animated.timing(fadeAnim,  { toValue: 0, duration: 110, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: -32 * dir, duration: 110, useNativeDriver: true }),
     ]).start(() => {
       callback();
-      slideAnim.setValue(20);
+      slideAnim.setValue(32 * dir);
       Animated.parallel([
-        Animated.timing(fadeAnim,  { toValue:1, duration:250, useNativeDriver:true }),
-        Animated.timing(slideAnim, { toValue:0, duration:250, useNativeDriver:true }),
+        Animated.spring(fadeAnim,  { toValue: 1, tension: 80, friction: 10, useNativeDriver: true }),
+        Animated.spring(slideAnim, { toValue: 0, tension: 80, friction: 10, useNativeDriver: true }),
       ]).start();
     });
   };
 
   const goNext = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (isLast) {
-      // Save and navigate
       await Storage.setOnboarded();
       if (name.trim()) await Storage.saveUsername(name.trim());
-      const today = localDate(0);
-      await Storage.saveLastWoke(today, woke);
+      await Storage.saveLastWoke(localDate(0), woke);
       router.replace('/(tabs)/plan');
       return;
     }
-    animateTransition(() => setStep(s => s + 1));
+    animateTransition(() => setStep(s => s + 1), 1);
   };
 
   const goBack = () => {
     if (step === 0) return;
-    animateTransition(() => setStep(s => s - 1));
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    animateTransition(() => setStep(s => s - 1), -1);
   };
+
+  const isWelcome = step === 0;
 
   return (
     <SafeAreaView style={s.safe}>
       <KeyboardAvoidingView
-        style={{ flex:1 }}
+        style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
 
         {/* ── Progress bar ── */}
         <View style={s.progressTrack}>
-          <Animated.View style={[s.progressFill, { width:`${prog * 100}%` }]} />
+          <Animated.View style={[s.progressFill, {
+            width: progressAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
+          }]} />
         </View>
 
-        {/* ── Back ── */}
+        {/* ── Back button ── */}
         <View style={s.topBar}>
           {step > 0 && (
-            <TouchableOpacity onPress={goBack} hitSlop={12}>
+            <TouchableOpacity onPress={goBack} hitSlop={12} activeOpacity={0.7}>
               <Text style={s.backBtn}>← Back</Text>
             </TouchableOpacity>
           )}
         </View>
 
         {/* ── Content ── */}
-        <Animated.View style={[s.content, { opacity:fadeAnim, transform:[{ translateY:slideAnim }] }]}>
-          <Text style={s.icon}>{current.icon}</Text>
+        <Animated.View style={[s.content, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+
+          {/* Icon – pulses on welcome step */}
+          <Animated.Text style={[s.icon, { transform: [{ scale: iconScale }] }]}>
+            {current.icon}
+          </Animated.Text>
+
           <Text style={s.stepTitle}>{current.title}</Text>
           <Text style={s.stepSub}>{current.sub}</Text>
 
           {current.id === 'learns' && (
-            <View style={{ marginBottom:28 }}>
+            <View style={{ marginBottom: 28 }}>
               {LEARN_MILESTONES.map(([col, lbl, desc]) => (
                 <View key={lbl} style={s.milestoneRow}>
-                  <View style={[s.milestoneDot, { backgroundColor:col }]} />
-                  <Text style={{ fontSize:13 }}>
-                    <Text style={{ fontWeight:'600', color:col }}>{lbl} </Text>
-                    <Text style={{ color:T.sub }}>{desc}</Text>
+                  <View style={[s.milestoneDot, { backgroundColor: col }]} />
+                  <Text style={{ fontSize: 13 }}>
+                    <Text style={{ fontWeight: '600', color: col }}>{lbl} </Text>
+                    <Text style={{ color: T.sub }}>{desc}</Text>
                   </Text>
                 </View>
               ))}
@@ -175,7 +213,7 @@ export default function OnboardingScreen() {
           )}
 
           {current.input === 'time' && (
-            <View style={{ marginBottom:8 }}>
+            <View style={{ marginBottom: 8 }}>
               <TimePicker value={woke} onChange={setWoke} />
             </View>
           )}
@@ -183,7 +221,7 @@ export default function OnboardingScreen() {
 
         {/* ── Bottom ── */}
         <View style={s.bottom}>
-          {/* Dots */}
+          {/* Step dots */}
           <View style={s.dotsRow}>
             {STEPS.map((_, i) => (
               <View key={i} style={[s.dot, i === step && s.dotActive]} />
@@ -191,8 +229,11 @@ export default function OnboardingScreen() {
           </View>
 
           {/* CTA */}
-          <TouchableOpacity onPress={goNext} style={s.primaryBtn}>
-            <Text style={s.primaryBtnText}>
+          <TouchableOpacity
+            onPress={goNext}
+            style={[s.primaryBtn, isWelcome && s.welcomeBtn]}
+            activeOpacity={0.88}>
+            <Text style={[s.primaryBtnText, isWelcome && s.welcomeBtnText]}>
               {isLast ? '🚀 Start the app' : current.cta}
             </Text>
           </TouchableOpacity>
@@ -207,66 +248,72 @@ export default function OnboardingScreen() {
 }
 
 const s = StyleSheet.create({
-  safe: { flex:1, backgroundColor:T.bg },
+  safe: { flex: 1, backgroundColor: T.bg },
   progressTrack: {
-    height:3, backgroundColor:T.elevated, marginHorizontal:0,
+    height: 3, backgroundColor: T.elevated,
   },
   progressFill: {
-    height:'100%',
-    backgroundColor:T.accent,
-    borderRadius:2,
+    height: '100%', backgroundColor: T.accent, borderRadius: 2,
   },
   topBar: {
-    paddingHorizontal:20, paddingVertical:12, minHeight:44, justifyContent:'center',
+    paddingHorizontal: 20, paddingVertical: 12, minHeight: 44, justifyContent: 'center',
   },
-  backBtn: { fontSize:14, color:T.sub },
+  backBtn: { fontSize: 14, color: T.sub },
   content: {
-    flex:1, paddingHorizontal:28, paddingBottom:20, justifyContent:'center',
+    flex: 1, paddingHorizontal: 28, paddingBottom: 20, justifyContent: 'center',
   },
   icon: {
-    fontSize:72, lineHeight:80, marginBottom:32,
+    fontSize: 88, lineHeight: 100, marginBottom: 28, textAlign: 'center',
   },
   stepTitle: {
-    fontSize:32, fontWeight:'800', letterSpacing:-1.2,
-    color:T.text, marginBottom:16, lineHeight:38,
+    fontSize: 32, fontWeight: '800', letterSpacing: -1.2,
+    color: T.text, marginBottom: 16, lineHeight: 38, textAlign: 'center',
   },
   stepSub: {
-    fontSize:16, color:T.sub, lineHeight:26, marginBottom:32,
+    fontSize: 16, color: T.sub, lineHeight: 26, marginBottom: 32, textAlign: 'center',
   },
   milestoneRow: {
-    flexDirection:'row', alignItems:'center', gap:12, marginBottom:12,
+    flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12,
   },
   milestoneDot: {
-    width:8, height:8, borderRadius:4, flexShrink:0,
+    width: 8, height: 8, borderRadius: 4, flexShrink: 0,
   },
   nameInput: {
-    fontSize:18, color:T.text,
-    backgroundColor:T.surface, borderRadius:16,
-    paddingVertical:14, paddingHorizontal:18,
-    borderWidth:1, borderColor:T.border, marginBottom:8,
+    fontSize: 18, color: T.text,
+    backgroundColor: T.surface, borderRadius: 16,
+    paddingVertical: 14, paddingHorizontal: 18,
+    borderWidth: 1, borderColor: T.border, marginBottom: 8,
+    textAlign: 'center',
   },
   bottom: {
-    paddingHorizontal:24, paddingBottom:48,
+    paddingHorizontal: 24, paddingBottom: 48,
   },
   dotsRow: {
-    flexDirection:'row', justifyContent:'center', gap:6, marginBottom:24,
+    flexDirection: 'row', justifyContent: 'center', gap: 6, marginBottom: 24,
   },
   dot: {
-    width:6, height:6, borderRadius:3, backgroundColor:T.muted,
+    width: 6, height: 6, borderRadius: 3, backgroundColor: T.muted,
   },
   dotActive: {
-    width:20, backgroundColor:T.accent,
+    width: 20, backgroundColor: T.accent,
   },
   primaryBtn: {
-    paddingVertical:15, borderRadius:16,
-    backgroundColor:T.accent, alignItems:'center',
-    shadowColor:T.accent, shadowOffset:{ width:0, height:8 },
-    shadowOpacity:0.25, shadowRadius:16, elevation:8,
+    paddingVertical: 16, borderRadius: 16,
+    backgroundColor: T.accent, alignItems: 'center',
+    shadowColor: T.accent, shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25, shadowRadius: 16, elevation: 8,
+  },
+  welcomeBtn: {
+    paddingVertical: 20,
+    shadowOpacity: 0.35, shadowRadius: 24,
   },
   primaryBtnText: {
-    fontSize:15, fontWeight:'700', color:'#060914',
+    fontSize: 15, fontWeight: '700', color: '#060914',
+  },
+  welcomeBtnText: {
+    fontSize: 17,
   },
   disclaimer: {
-    fontSize:12, color:T.muted, textAlign:'center', marginTop:14,
+    fontSize: 12, color: T.muted, textAlign: 'center', marginTop: 14,
   },
 });

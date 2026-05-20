@@ -3,6 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useCallback, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet, Alert } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import * as Notifications from 'expo-notifications';
@@ -56,6 +57,7 @@ export default function AlarmScreen() {
   const pulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: pulse.value }] }));
 
   const addAlarm = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const [h, m] = newTime.split(':').map(Number);
     const fireAt = h * 60 + m;
     const entry = {
@@ -74,6 +76,7 @@ export default function AlarmScreen() {
   };
 
   const removeAlarm = async (id) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const hit = alarm.alarms.find(a => a.id === id);
     if (hit?.notifId) {
       await Notifications.cancelScheduledNotificationAsync(hit.notifId).catch(() => {});

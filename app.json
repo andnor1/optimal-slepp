@@ -11,11 +11,11 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSHealthShareUsageDescription": "Optimal Slepp leser pulsmålinger fra Apple Watch for mer presis søvnfase-deteksjon.",
-        "NSHealthUpdateUsageDescription": "Optimal Slepp skriver søvnanalyse til Apple Health etter fullført nattopptak.",
-        "NSMotionUsageDescription": "Optimal Slepp bruker akselerometeret for å registrere bevegelse under søvn.",
-        "NSMicrophoneUsageDescription": "Optimal Slepp bruker mikrofonen til å analysere puste- og snorkelyder under søvn.",
-        "NSUserNotificationsUsageDescription": "Optimal Slepp sender varsler om søvnanalyse og påminnelser om sengetid.",
+        "NSHealthShareUsageDescription": "Optimal Slepp reads heart rate from Apple Watch for more precise sleep phase detection.",
+        "NSHealthUpdateUsageDescription": "Optimal Slepp writes sleep analysis to Apple Health after completed night recording.",
+        "NSMotionUsageDescription": "Optimal Slepp uses the accelerometer to detect movement during sleep.",
+        "NSMicrophoneUsageDescription": "Optimal Slepp uses the microphone to analyze breathing and snoring sounds during sleep.",
+        "NSUserNotificationsUsageDescription": "Optimal Slepp sends notifications about sleep analysis and bedtime reminders.",
         "UIBackgroundModes": ["fetch", "remote-notification"]
       },
       "entitlements": {
@@ -50,8 +50,8 @@
       [
         "react-native-health",
         {
-          "healthSharePermission": "Optimal Slepp leser pulsmålinger fra Apple Watch for mer presis søvnfase-deteksjon.",
-          "healthUpdatePermission": "Optimal Slepp skriver søvnanalyse til Apple Health etter fullført nattopptak."
+          "healthSharePermission": "Optimal Slepp reads heart rate from Apple Watch for more precise sleep phase detection.",
+          "healthUpdatePermission": "Optimal Slepp writes sleep analysis to Apple Health after completed night recording."
         }
       ],
       "./plugins/sleep-health-writer",
@@ -61,9 +61,9 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#060914",
           "dark": {
-            "backgroundColor": "#000000"
+            "backgroundColor": "#060914"
           }
         }
       ]
