@@ -13,11 +13,15 @@
       "infoPlist": {
         "NSHealthShareUsageDescription": "Optimal Slepp leser pulsmålinger fra Apple Watch for mer presis søvnfase-deteksjon.",
         "NSHealthUpdateUsageDescription": "Optimal Slepp skriver søvnanalyse til Apple Health etter fullført nattopptak.",
-        "NSMotionUsageDescription": "Optimal Slepp bruker akselerometeret for å registrere bevegelse under søvn."
+        "NSMotionUsageDescription": "Optimal Slepp bruker akselerometeret for å registrere bevegelse under søvn.",
+        "NSMicrophoneUsageDescription": "Optimal Slepp bruker mikrofonen til å analysere puste- og snorkelyder under søvn.",
+        "NSUserNotificationsUsageDescription": "Optimal Slepp sender varsler om søvnanalyse og påminnelser om sengetid.",
+        "UIBackgroundModes": ["fetch", "remote-notification"]
       },
       "entitlements": {
         "com.apple.developer.healthkit": true,
-        "com.apple.developer.healthkit.access": []
+        "com.apple.developer.healthkit.access": [],
+        "aps-environment": "development"
       },
       "bundleIdentifier": "com.andrenormann.optimalslepp"
     },
@@ -42,6 +46,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-notifications",
       [
         "react-native-health",
         {
@@ -50,7 +55,6 @@
         }
       ],
       "./plugins/sleep-health-writer",
-      "./plugins/strip-aps-entitlement",
       [
         "expo-splash-screen",
         {
