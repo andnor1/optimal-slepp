@@ -4,14 +4,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const KEYS = {
-  LOG:           'sleeplog_v2',
-  WINDOWS:       'sleep_windows',
-  LAST_WOKE:     'last_woke',
-  ONBOARDED:     'onboarded',
-  USERNAME:      'username',
-  ALARMS:        'active_alarms',
-  ALARM_ON:      'alarm_enabled',
-  LAST_ANALYSIS: 'last_analysis',
+  LOG:              'sleeplog_v2',
+  WINDOWS:          'sleep_windows',
+  LAST_WOKE:        'last_woke',
+  ONBOARDED:        'onboarded',
+  USERNAME:         'username',
+  ALARMS:           'active_alarms',
+  ALARM_ON:         'alarm_enabled',
+  LAST_ANALYSIS:    'last_analysis',
+  NAP_LOG:          'nap_log',
+  COACHING_STATE:   'coaching_state',
 };
 
 export const Storage = {
@@ -73,6 +75,24 @@ export const Storage = {
   },
   async saveAlarmEnabled(val) {
     await AsyncStorage.setItem(KEYS.ALARM_ON, String(val));
+  },
+
+  // Nap log (up to 30 entries)
+  async getNapLog() {
+    const raw = await AsyncStorage.getItem(KEYS.NAP_LOG);
+    return raw ? JSON.parse(raw) : [];
+  },
+  async saveNapLog(log) {
+    await AsyncStorage.setItem(KEYS.NAP_LOG, JSON.stringify(log.slice(-30)));
+  },
+
+  // Coaching state { streak, lastDate, done: [tipId, ...] }
+  async getCoachingState() {
+    const raw = await AsyncStorage.getItem(KEYS.COACHING_STATE);
+    return raw ? JSON.parse(raw) : { streak: 0, lastDate: null, done: [] };
+  },
+  async saveCoachingState(state) {
+    await AsyncStorage.setItem(KEYS.COACHING_STATE, JSON.stringify(state));
   },
 
   // Last recorded night analysis

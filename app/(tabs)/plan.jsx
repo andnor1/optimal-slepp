@@ -120,14 +120,43 @@ function AnchorPicker({ value, onChange }) {
   );
 }
 
+// ─── Timezone picker ─────────────────────────────────────────────────────────
+function TzPicker({ label, value, onChange }) {
+  const sign = value >= 0 ? '+' : '';
+  return (
+    <View style={{ flex: 1 }}>
+      <Text style={s.fieldLabel}>{label}</Text>
+      <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginTop:4 }}>
+        <TouchableOpacity
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onChange(Math.max(-12, value - 1)); }}
+          style={s.tzAdjBtn}>
+          <Text style={{ color:T.sub, fontSize:18, lineHeight:22 }}>−</Text>
+        </TouchableOpacity>
+        <View style={{ flex:1, backgroundColor:T.elevated, borderRadius:10, paddingVertical:8, alignItems:'center' }}>
+          <Text style={{ fontSize:15, fontWeight:'700', color:T.text }}>UTC{sign}{value}</Text>
+        </View>
+        <TouchableOpacity
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onChange(Math.min(14, value + 1)); }}
+          style={s.tzAdjBtn}>
+          <Text style={{ color:T.sub, fontSize:18, lineHeight:22 }}>+</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 // ─── Main screen ─────────────────────────────────────────────────────────────
 export default function PlanScreen() {
-  const [windows,  setWindows]  = useState([]);
-  const [lwd,      setLwd]      = useState(localDate(0));
-  const [lwt,      setLwt]      = useState('08:00');
-  const [results,  setResults]  = useState([]);
-  const [calib,    setCalib]    = useState({ dlmoShift:0, amplitude:1.0 });
-  const [expanded, setExpanded] = useState({});
+  const [windows,   setWindows]   = useState([]);
+  const [lwd,       setLwd]       = useState(localDate(0));
+  const [lwt,       setLwt]       = useState('08:00');
+  const [results,   setResults]   = useState([]);
+  const [calib,     setCalib]     = useState({ dlmoShift:0, amplitude:1.0 });
+  const [expanded,  setExpanded]  = useState({});
+  const [showJetlag,setShowJetlag]= useState(false);
+  const [fromTz,    setFromTz]    = useState(0);
+  const [toTz,      setToTz]      = useState(2);
+  const [jetlagPlan,setJetlagPlan]= useState(null);
 
   useFocusEffect(useCallback(() => {
     (async () => {
@@ -172,6 +201,39 @@ export default function PlanScreen() {
     const res = optimizeSleep(parsed, lastWokeMin, calib);
     setResults(res);
     setExpanded({});
+  };
+
+  const calcJetlag = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const diff    = toTz - fromTz;
+    if (diff === 0) { setJetlagPlan({ same: true }); return; }
+    const isEast  = diff > 0;
+    const absDiff = Math.abs(diff);
+    const rate    = isEast ? 1 : 1.5;
+    const nDays   = Math.ceil(absDiff / rate);
+    // Natural sleep onset from DLMO: DLMO = 21+shift, onset ≈ DLMO+2h
+    const homeBed = ((21 + (calib.dlmoShift||0) + 2) % 24 + 24) % 24;
+    // On arrival day, body still on home time → destination local bedtime
+    const arrivalBed = ((homeBed + diff) % 24 + 24) % 24;
+    const plan = Array.from({ length: Math.min(nDays + 1, 8) }, (_, day) => {
+      const adj     = Math.min(day * rate, absDiff);
+      const bedDec  = isEast
+        ? ((arrivalBed - adj) % 24 + 24) % 24
+        : ((arrivalBed + adj) % 24 + 24) % 24;
+      const wakeDec = ((bedDec + 8) % 24 + 24) % 24;
+      const fmt = h => `${String(Math.floor(h)).padStart(2,'0')}:${String(Math.round((h%1)*60)).padStart(2,'0')}`;
+      const lightH  = isEast ? Math.floor(wakeDec) : 17;
+      const avoidH  = isEast ? 19 : 7;
+      return {
+        day,
+        bedtime:  fmt(bedDec),
+        wake:     fmt(wakeDec),
+        light:    `${String(lightH).padStart(2,'0')}:00–${String((lightH+2)%24).padStart(2,'0')}:00`,
+        avoid:    `${String(avoidH).padStart(2,'0')}:00–${String((avoidH+3)%24).padStart(2,'0')}:00`,
+        done:     adj >= absDiff,
+      };
+    });
+    setJetlagPlan({ isEast, absDiff, nDays, plan });
   };
 
   const total = results.filter(r => !r.skip).reduce((s, r) => s + r.duration, 0);
@@ -323,6 +385,93 @@ export default function PlanScreen() {
           </>
         )}
 
+        {/* ── Jetlag Calculator ── */}
+        <TouchableOpacity
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowJetlag(v => !v); }}
+          style={[s.addWindowBtn, { borderColor:T.blue, marginTop:8 }]}>
+          <Text style={[s.addWindowBtnText, { color:T.blue }]}>
+            ✈️ Jetlag Calculator {showJetlag ? '▲' : '▾'}
+          </Text>
+        </TouchableOpacity>
+
+        {showJetlag && (
+          <Card style={{ marginBottom:16 }}>
+            <Text style={[s.mono9, { marginBottom:14 }]}>TIMEZONE ADJUSTMENT PLAN</Text>
+
+            {/* Timezone pickers */}
+            <View style={{ flexDirection:'row', gap:12, marginBottom:16 }}>
+              <TzPicker label="FROM (HOME)" value={fromTz} onChange={setFromTz} />
+              <TzPicker label="TO (DESTINATION)" value={toTz} onChange={setToTz} />
+            </View>
+
+            <TouchableOpacity onPress={calcJetlag} style={[s.primaryBtn, { marginBottom:12 }]}>
+              <Text style={s.primaryBtnText}>Calculate adaptation plan</Text>
+            </TouchableOpacity>
+
+            {jetlagPlan && (
+              jetlagPlan.same ? (
+                <Text style={{ fontSize:13, color:T.sub, textAlign:'center' }}>
+                  Same timezone – no jetlag adjustment needed.
+                </Text>
+              ) : (
+                <>
+                  <View style={{ flexDirection:'row', justifyContent:'space-between', marginBottom:12 }}>
+                    <View>
+                      <Text style={{ fontSize:13, fontWeight:'600', color:T.text }}>
+                        {jetlagPlan.isEast ? '→ Eastward' : '← Westward'} · {jetlagPlan.absDiff}h difference
+                      </Text>
+                      <Text style={{ fontSize:12, color:T.muted }}>
+                        {jetlagPlan.isEast
+                          ? `~${jetlagPlan.nDays} days to adapt (1h/day)`
+                          : `~${jetlagPlan.nDays} days to adapt (1.5h/day)`}
+                      </Text>
+                    </View>
+                    <Text style={{ fontSize:24 }}>{jetlagPlan.isEast ? '🌅' : '🌇'}</Text>
+                  </View>
+
+                  {/* Day-by-day plan */}
+                  {jetlagPlan.plan.map(row => (
+                    <View key={row.day} style={[
+                      s.jetlagRow,
+                      row.done && { borderColor:`${T.accent}40` },
+                    ]}>
+                      <View style={[s.jetlagDayBadge, row.done && { backgroundColor:T.accent }]}>
+                        <Text style={{ fontSize:11, fontWeight:'700', color: row.done ? '#060914' : T.sub }}>
+                          {row.day === 0 ? 'ARR' : `D${row.day}`}
+                        </Text>
+                      </View>
+                      <View style={{ flex:1 }}>
+                        <View style={{ flexDirection:'row', gap:16 }}>
+                          <View>
+                            <Text style={{ fontSize:9, color:T.muted, letterSpacing:0.5 }}>BED</Text>
+                            <Text style={{ fontSize:14, fontWeight:'700', color: row.done ? T.accent : T.text }}>
+                              {row.bedtime}
+                            </Text>
+                          </View>
+                          <View>
+                            <Text style={{ fontSize:9, color:T.muted, letterSpacing:0.5 }}>WAKE</Text>
+                            <Text style={{ fontSize:14, fontWeight:'700', color:T.text }}>{row.wake}</Text>
+                          </View>
+                        </View>
+                        <Text style={{ fontSize:10, color:T.muted, marginTop:3 }}>
+                          💡 Seek light {row.light} · Avoid {row.avoid}
+                        </Text>
+                      </View>
+                      {row.done && <Text style={{ fontSize:11, color:T.accent }}>✓ adapted</Text>}
+                    </View>
+                  ))}
+
+                  <Text style={{ fontSize:11, color:T.muted, marginTop:8, lineHeight:18 }}>
+                    {jetlagPlan.isEast
+                      ? 'Eastward: seek morning light to advance your phase. Avoid bright light in the evening.'
+                      : 'Westward: seek evening light to delay your phase. Avoid morning light the first few days.'}
+                  </Text>
+                </>
+              )
+            )}
+          </Card>
+        )}
+
         <View style={{ height:32 }} />
       </ScrollView>
     </SafeAreaView>
@@ -386,6 +535,22 @@ const s = StyleSheet.create({
   debugBox: {
     backgroundColor:T.elevated, borderBottomLeftRadius:10, borderBottomRightRadius:10,
     padding:12, marginTop:1,
+  },
+  mono9: { fontSize:9, color:T.muted, letterSpacing:1, fontWeight:'600' },
+  tzAdjBtn: {
+    width:34, height:34, borderRadius:10, backgroundColor:T.elevated,
+    alignItems:'center', justifyContent:'center',
+    borderWidth:1, borderColor:T.border,
+  },
+  jetlagRow: {
+    flexDirection:'row', alignItems:'center', gap:12,
+    padding:10, marginBottom:8, borderRadius:12,
+    borderWidth:1, borderColor:T.border, backgroundColor:T.elevated,
+  },
+  jetlagDayBadge: {
+    width:36, height:36, borderRadius:8, backgroundColor:T.surface,
+    alignItems:'center', justifyContent:'center',
+    borderWidth:1, borderColor:T.border,
   },
   debugLine: { fontSize:12, color:T.sub, lineHeight:22 },
 });

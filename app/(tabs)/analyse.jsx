@@ -1,14 +1,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // ANALYSIS SCREEN  –  sleep history, statistics and quick log
 // ─────────────────────────────────────────────────────────────────────────────
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Modal,
-  StyleSheet, Alert,
+  StyleSheet, Alert, Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import ViewShot from 'react-native-view-shot';
 import { EmptyState } from '../../src/components/EmptyState';
 import Svg, { Circle, Path, Line, Text as SvgText } from 'react-native-svg';
 import TimePicker from '../../src/components/TimePicker';
@@ -267,6 +268,7 @@ export default function AnalyseScreen() {
   const [calib,        setCalib]        = useState({ dlmoShift:0, amplitude:1.0, dataPoints:0 });
   const [lastAnalysis, setLastAnalysis] = useState(null);
   const [showLog,      setShowLog]      = useState(false);
+  const exportRef = useRef();
 
   const loadData = useCallback(async () => {
     const [storedLog, analysis] = await Promise.all([
@@ -306,6 +308,45 @@ export default function AnalyseScreen() {
     );
   };
 
+  const handleExport = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const uri = await exportRef.current.capture();
+      await Share.share({ url: uri, title: 'Weekly Sleep Report' });
+    } catch {}
+  };
+
+  // ── Weekly stats ──
+  const now = new Date();
+  const weekStart = new Date(now); weekStart.setDate(now.getDate() - now.getDay()); weekStart.setHours(0,0,0,0);
+  const lastWeekStart = new Date(weekStart); lastWeekStart.setDate(weekStart.getDate() - 7);
+
+  const thisWeek = log.filter(e => new Date(minToDate(e.sleepStart) + 'T12:00:00') >= weekStart);
+  const lastWeek = log.filter(e => { const d = new Date(minToDate(e.sleepStart) + 'T12:00:00'); return d >= lastWeekStart && d < weekStart; });
+  const thisWeekAvg  = thisWeek.length ? thisWeek.reduce((a,e) => a + (e.sleepEnd - e.sleepStart), 0) / thisWeek.length : 0;
+  const lastWeekAvg  = lastWeek.length ? lastWeek.reduce((a,e) => a + (e.sleepEnd - e.sleepStart), 0) / lastWeek.length : 0;
+
+  const allDur = log.map(e => ({ dur: e.sleepEnd - e.sleepStart, date: minToDate(e.sleepStart) }));
+  const bestNight  = allDur.length ? allDur.reduce((a,b) => a.dur > b.dur ? a : b) : null;
+  const worstNight = allDur.length ? allDur.reduce((a,b) => a.dur < b.dur ? a : b) : null;
+
+  let streak = 0;
+  for (let i = log.length - 1; i >= 0; i--) {
+    if (log[i].sleepEnd - log[i].sleepStart >= 420) streak++;
+    else break;
+  }
+
+  // Trend: slope of last 14 nights (min/night)
+  const trend14 = log.slice(-14);
+  let trend = 0;
+  if (trend14.length >= 4) {
+    const n = trend14.length, sumX = (n-1)*n/2;
+    const sumX2 = (n-1)*n*(2*n-1)/6;
+    const sumY = trend14.reduce((a,e) => a + (e.sleepEnd - e.sleepStart), 0);
+    const sumXY = trend14.reduce((a,e,i) => a + i*(e.sleepEnd - e.sleepStart), 0);
+    trend = (n*sumXY - sumX*sumY) / (n*sumX2 - sumX*sumX);
+  }
+
   if (log.length === 0 && !lastAnalysis) return (
     <SafeAreaView style={s.safe}>
       <View style={s.scroll}>
@@ -328,7 +369,7 @@ export default function AnalyseScreen() {
   const avgBedtime = log.length ? log.map(e => (e.sleepStart % 1440) / 60).reduce((a,b) => a+b, 0) / log.length : 0;
   const recent7    = log.slice(-7);
   const recent7avg = recent7.length ? recent7.map(e => e.sleepEnd - e.sleepStart).reduce((a,b) => a+b, 0) / recent7.length : 0;
-  const chart      = log.slice(-14);
+  const chart      = log.slice(-30);
   const maxDur     = chart.length ? Math.max(...chart.map(e => e.sleepEnd - e.sleepStart)) : 1;
   const bedHH      = String(Math.floor(avgBedtime)).padStart(2,'0');
   const bedMM      = String(Math.round((avgBedtime % 1) * 60)).padStart(2,'0');
@@ -337,14 +378,68 @@ export default function AnalyseScreen() {
     <SafeAreaView style={s.safe}>
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
-        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingTop:20, marginBottom:20 }}>
+        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingTop:20, marginBottom:16 }}>
           <Text style={s.title}>Analysis</Text>
-          <TouchableOpacity
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowLog(true); }}
-            style={s.logBtn}>
-            <Text style={s.logBtnText}>+ Log session</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection:'row', gap:8 }}>
+            {log.length > 0 && (
+              <TouchableOpacity onPress={handleExport} style={s.logBtn}>
+                <Text style={s.logBtnText}>↑ Export</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowLog(true); }}
+              style={s.logBtn}>
+              <Text style={s.logBtnText}>+ Log session</Text>
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {/* ── Weekly stats ── */}
+        {log.length > 0 && (
+          <ViewShot ref={exportRef} options={{ format:'png', quality:1 }} style={{ backgroundColor:T.bg }}>
+            <View style={[s.card, { marginBottom:16 }]}>
+              <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+                <Text style={s.mono10}>THIS WEEK</Text>
+                {trend14.length >= 4 && (
+                  <Text style={{ fontSize:11, fontWeight:'600',
+                    color: trend > 4 ? T.accent : trend < -4 ? T.red : T.gold }}>
+                    {trend > 4 ? '↑ Improving' : trend < -4 ? '↓ Declining' : '→ Stable'}
+                  </Text>
+                )}
+              </View>
+
+              <View style={{ flexDirection:'row', gap:10, marginBottom:12 }}>
+                {[
+                  ['THIS WEEK', formatDur(Math.round(thisWeekAvg)), thisWeekAvg >= 420 ? T.accent : thisWeekAvg >= 300 ? T.gold : T.red],
+                  ['LAST WEEK', lastWeekAvg ? formatDur(Math.round(lastWeekAvg)) : '–', lastWeekAvg >= 420 ? T.accent : lastWeekAvg >= 300 ? T.gold : T.red],
+                  ['7H+ STREAK', `${streak}`, streak >= 3 ? T.accent : streak >= 1 ? T.gold : T.muted],
+                ].map(([l,v,c]) => (
+                  <View key={l} style={s.statBox}>
+                    <Text style={s.statLabel}>{l}</Text>
+                    <Text style={[s.statValue, { color:c }]}>{v}{l==='7H+ STREAK'&&streak>0?' 🔥':''}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {bestNight && (
+                <View style={{ flexDirection:'row', gap:10 }}>
+                  <View style={[s.statBox, { flex:1 }]}>
+                    <Text style={s.statLabel}>BEST NIGHT</Text>
+                    <Text style={[s.statValue, { fontSize:13, color:T.accent }]}>
+                      {formatDur(bestNight.dur)} · {friendlyDate(bestNight.date)}
+                    </Text>
+                  </View>
+                  <View style={[s.statBox, { flex:1 }]}>
+                    <Text style={s.statLabel}>WORST NIGHT</Text>
+                    <Text style={[s.statValue, { fontSize:13, color:T.red }]}>
+                      {formatDur(worstNight.dur)} · {friendlyDate(worstNight.date)}
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </View>
+          </ViewShot>
+        )}
 
         {/* ── Siste innspilte natt ── */}
         {lastAnalysis && (
@@ -458,6 +553,25 @@ export default function AnalyseScreen() {
                   </View>
                 ))}
               </View>
+              {/* Trend vs recommended */}
+              {chart.length >= 4 && (() => {
+                const avg30 = chart.reduce((a,e) => a + (e.sleepEnd-e.sleepStart), 0) / chart.length;
+                const vs420 = avg30 - 420;
+                return (
+                  <View style={{ marginTop:10, paddingTop:10, borderTopWidth:1, borderTopColor:T.border }}>
+                    <Text style={{ fontSize:11, color:T.sub }}>
+                      Your {chart.length}-night average: {' '}
+                      <Text style={{ fontWeight:'700', color: avg30>=420?T.accent:avg30>=300?T.gold:T.red }}>
+                        {formatDur(Math.round(avg30))}
+                      </Text>
+                      {'  '}
+                      <Text style={{ color: vs420>=0?T.accent:T.red }}>
+                        {vs420>=0?'+':''}{formatDur(Math.abs(Math.round(vs420)))} vs recommended 7h
+                      </Text>
+                    </Text>
+                  </View>
+                );
+              })()}
             </View>
 
             {/* ── Melatonin-ring ── */}

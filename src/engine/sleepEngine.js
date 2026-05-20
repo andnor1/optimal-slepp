@@ -34,7 +34,7 @@ export function nowMin() {
 }
 export function formatDur(min) {
   if(!min||min<=0) return '–';
-  return `${Math.floor(min/60)}t${min%60?` ${min%60}m`:''}`;
+  return `${Math.floor(min/60)}h${min%60?` ${min%60}m`:''}`;
 }
 export function parseWindow(w) {
   const start=toMin(w.date,w.startTime);
