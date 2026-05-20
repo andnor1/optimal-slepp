@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// PROFIL-SKJERM  –  brukernavn, kalibrering, innstillinger
+// PROFILE SCREEN  –  username, calibration, settings
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useCallback } from 'react';
 import {
@@ -47,10 +47,10 @@ function InfoRow({ icon, title, desc }) {
 }
 
 const INFO_ITEMS = [
-  ['🧬','Melatonin-modell',    'Kosinus-kurve med personlig DLMO-kalibrering basert på søvnhistorikk'],
-  ['📈','Kalibrering',         'Etter 3+ loggede netter beregnes din personlige fase og amplitude'],
-  ['🔄','Kontinuerlig tid',    'Algoritmen planlegger hele perioden som én tidslinje, ikke isolerte vinduer'],
-  ['💤','Søvnsykluser',        'Anbefalt søvnlengde snapper til 90-minutters sykluser for optimal søvnarkitektur'],
+  ['🧬','Melatonin Model',   'Cosine curve with personal DLMO calibration based on sleep history'],
+  ['📈','Calibration',       'After 3+ logged nights your personal phase and amplitude are calculated'],
+  ['🔄','Continuous time',   'The algorithm plans the entire period as one timeline, not isolated windows'],
+  ['💤','Sleep Cycles',      'Recommended sleep length snaps to 90-minute cycles for optimal sleep architecture'],
 ];
 
 export default function ProfilScreen() {
@@ -90,12 +90,12 @@ export default function ProfilScreen() {
 
   const confirmClearLog = () => {
     Alert.alert(
-      'Slett søvnhistorikk',
-      'Dette sletter alle loggede søvnøkter og nullstiller kalibreringen. Kan ikke angres.',
+      'Delete sleep history',
+      'This deletes all logged sleep sessions and resets the calibration. Cannot be undone.',
       [
-        { text:'Avbryt', style:'cancel' },
+        { text:'Cancel', style:'cancel' },
         {
-          text:'Slett alt', style:'destructive',
+          text:'Delete all', style:'destructive',
           onPress: async () => {
             await Storage.saveLog([]);
             setLog([]);
@@ -109,7 +109,7 @@ export default function ProfilScreen() {
   return (
     <SafeAreaView style={s.safe}>
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
-        <Text style={s.title}>Profil & innstillinger</Text>
+        <Text style={s.title}>Profile & Settings</Text>
 
         {/* ── Profilkort ── */}
         <Card style={{ marginBottom:16 }}>
@@ -127,29 +127,29 @@ export default function ProfilScreen() {
                   onSubmitEditing={saveEditing}
                   style={s.nameInput}
                   placeholderTextColor={T.muted}
-                  placeholder="Ola Nordmann"
+                  placeholder="Your name"
                 />
               ) : (
                 <Text style={{ fontSize:16, fontWeight:'600', color:T.text }}>
-                  {name || 'Bruker'}
+                  {name || 'User'}
                 </Text>
               )}
               <Text style={{ fontSize:12, color:T.muted }}>
                 {calib.dataPoints >= 3
-                  ? 'Personlig modell aktiv'
-                  : `${calib.dataPoints}/3 netter for kalibrering`}
+                  ? 'Personal model active'
+                  : `${calib.dataPoints}/3 nights to calibration`}
               </Text>
             </View>
             <TouchableOpacity
               onPress={editing ? saveEditing : () => setEditing(true)}
               style={s.editBtn}>
-              <Text style={s.editBtnText}>{editing ? 'Lagre' : 'Endre'}</Text>
+              <Text style={s.editBtnText}>{editing ? 'Save' : 'Edit'}</Text>
             </TouchableOpacity>
           </View>
 
           <View style={{ flexDirection:'row', gap:10 }}>
             {[
-              ['LOGGET',    `${calib.dataPoints} netter`, T.text],
+              ['LOGGED',    `${calib.dataPoints} nights`, T.text],
               ['DLMO',      `${calib.dlmoShift >= 0 ? '+' : ''}${Math.round(calib.dlmoShift * 10) / 10}t`, T.accent],
               ['AMPLITUDE', `${Math.round(calib.amplitude * 100)}%`, calib.amplitude > 0.8 ? T.accent : T.gold],
             ].map(([l, v, c]) => (
@@ -164,21 +164,21 @@ export default function ProfilScreen() {
           {calib.dataPoints >= 3 && (
             <View style={s.dlmoBanner}>
               <View style={{ flex:1 }}>
-                <Text style={s.dlmoLabel}>DIN MELATONIN-TOPP ER ESTIMERT TIL</Text>
+                <Text style={s.dlmoLabel}>YOUR MELATONIN PEAK IS ESTIMATED AT</Text>
                 <View style={{ flexDirection:'row', alignItems:'baseline', gap:6, marginTop:2 }}>
-                  <Text style={s.dlmoTime}>kl {peakStr(calib.dlmoPeakHour)}</Text>
+                  <Text style={s.dlmoTime}>at {peakStr(calib.dlmoPeakHour)}</Text>
                   {calib.hasQualityData && (
                     <View style={s.qualityPill}>
                       <Text style={s.qualityPillText}>
-                        {calib.qualityNights} natt{calib.qualityNights !== 1 ? 'er' : ''} med kvalitetsdata
+                        {calib.qualityNights} night{calib.qualityNights !== 1 ? 's' : ''} of quality data
                       </Text>
                     </View>
                   )}
                 </View>
                 <Text style={s.dlmoSub}>
-                  Optimal leggetid kl{' '}
+                  Optimal bedtime at{' '}
                   {peakStr(((calib.dlmoPeakHour - 3) % 24 + 24) % 24)}
-                  {'  ·  '}DLMO kl {peakStr(((21 + calib.dlmoShift) % 24 + 24) % 24)}
+                  {'  ·  '}DLMO at {peakStr(((21 + calib.dlmoShift) % 24 + 24) % 24)}
                 </Text>
               </View>
               <Text style={{ fontSize:28 }}>🌙</Text>
@@ -191,10 +191,10 @@ export default function ProfilScreen() {
           <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
             <View style={{ flex:1, marginRight:16 }}>
               <Text style={{ fontSize:14, fontWeight:'600', color:T.text, marginBottom:2 }}>
-                🔔 Smart vekkerklokke
+                🔔 Smart Alarm Clock
               </Text>
               <Text style={{ fontSize:12, color:T.muted }}>
-                Alarm settes automatisk til anbefalt opptid
+                Alarm is automatically set to recommended wake time
               </Text>
             </View>
             <Switch
@@ -210,7 +210,7 @@ export default function ProfilScreen() {
         {/* ── Kalibreringsstatus ── */}
         {calib.dataPoints > 0 && (
           <Card style={{ marginBottom:16 }}>
-            <Text style={[s.mono10, { marginBottom:12 }]}>KALIBRERINGSSTATUS</Text>
+            <Text style={[s.mono10, { marginBottom:12 }]}>CALIBRATION STATUS</Text>
             <View style={{ height:6, backgroundColor:T.elevated, borderRadius:3, overflow:'hidden', marginBottom:8 }}>
               <View style={{
                 height:'100%',
@@ -220,9 +220,9 @@ export default function ProfilScreen() {
               }} />
             </View>
             {[
-              [3,  T.gold,  '3+ netter',  'Personlig melatonin-fase estimert'],
-              [7,  T.blue,  '7+ netter',  'God kalibrering av søvnmønster'],
-              [30, T.accent,'30+ netter', 'Presis individuell søvnmodell'],
+              [3,  T.gold,  '3+ nights',  'Personal melatonin phase estimated'],
+              [7,  T.blue,  '7+ nights',  'Good calibration of sleep pattern'],
+              [30, T.accent,'30+ nights', 'Precise individual sleep model'],
             ].map(([threshold, col, lbl, desc]) => (
               <View key={lbl} style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:8 }}>
                 <View style={{
@@ -239,7 +239,7 @@ export default function ProfilScreen() {
         )}
 
         {/* ── Om appen ── */}
-        <Text style={s.sectionLabel}>Om appen</Text>
+        <Text style={s.sectionLabel}>About the app</Text>
         {INFO_ITEMS.map(([icon, title, desc]) => (
           <InfoRow key={title} icon={icon} title={title} desc={desc} />
         ))}
@@ -248,7 +248,7 @@ export default function ProfilScreen() {
         {log.length > 0 && (
           <View style={{ marginTop:20, marginBottom:8 }}>
             <TouchableOpacity onPress={confirmClearLog} style={s.dangerBtn}>
-              <Text style={s.dangerBtnText}>🗑 Slett all søvnhistorikk</Text>
+              <Text style={s.dangerBtnText}>🗑 Delete all sleep history</Text>
             </TouchableOpacity>
           </View>
         )}

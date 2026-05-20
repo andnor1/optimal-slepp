@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// ANALYSE-SKJERM  –  søvnhistorikk, statistikk og hurtig-logg
+// ANALYSIS SCREEN  –  sleep history, statistics and quick log
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useCallback } from 'react';
 import {
@@ -27,17 +27,17 @@ const T = {
   text:'#E2EAF4', sub:'#7A96B8', muted:'#3A4F6A',
 };
 
-const DAYS = ['søn','man','tir','ons','tor','fre','lør'];
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 function friendlyDate(dateStr) {
   const d = new Date(dateStr + 'T12:00:00');
   return `${DAYS[d.getDay()]} ${d.getDate()}.${d.getMonth()+1}`;
 }
 
 const PHASE_META = {
-  deep:  { color: '#1E3A8A', label: 'Dyp søvn' },
-  light: { color: '#4FA3E0', label: 'Lett søvn' },
+  deep:  { color: '#1E3A8A', label: 'Deep Sleep' },
+  light: { color: '#4FA3E0', label: 'Light Sleep' },
   rem:   { color: '#5EE7B7', label: 'REM' },
-  awake: { color: '#E05C5C', label: 'Våken' },
+  awake: { color: '#E05C5C', label: 'Awake' },
 };
 
 // ─── Sleep graph (SVG hypnogram) ──────────────────────────────────────────────
@@ -241,16 +241,16 @@ function QuickLogModal({ visible, onSave, onClose }) {
       <TouchableOpacity style={s.modalBackdrop} activeOpacity={1} onPress={onClose}>
         <TouchableOpacity activeOpacity={1} style={s.modalSheet}>
           <View style={s.modalHandle} />
-          <Text style={s.modalTitle}>Logg søvnøkt</Text>
+          <Text style={s.modalTitle}>Log Sleep Session</Text>
 
           <View style={{ flexDirection:'row', gap:10, marginBottom:20 }}>
-            <DatePicker label="DATO"     value={date}  onChange={setDate} />
-            <TimePicker label="LA DEG"   value={start} onChange={setStart} />
-            <TimePicker label="STOD OPP" value={end}   onChange={setEnd} />
+            <DatePicker label="DATE"     value={date}  onChange={setDate} />
+            <TimePicker label="WENT TO BED" value={start} onChange={setStart} />
+            <TimePicker label="WOKE UP"  value={end}   onChange={setEnd} />
           </View>
 
           <TouchableOpacity onPress={save} style={s.primaryBtn}>
-            <Text style={s.primaryBtnText}>Lagre søvnøkt</Text>
+            <Text style={s.primaryBtnText}>Save Sleep Session</Text>
           </TouchableOpacity>
         </TouchableOpacity>
       </TouchableOpacity>
@@ -286,12 +286,12 @@ export default function AnalyseScreen() {
 
   const confirmDelete = (id) => {
     Alert.alert(
-      'Slett økt',
-      'Vil du slette denne søvnøkten?',
+      'Delete session',
+      'Delete this sleep session?',
       [
-        { text: 'Avbryt', style:'cancel' },
+        { text: 'Cancel', style:'cancel' },
         {
-          text: 'Slett', style:'destructive',
+          text: 'Delete', style:'destructive',
           onPress: async () => {
             const next = log.filter(e => e.id !== id);
             await Storage.saveLog(next);
@@ -306,15 +306,15 @@ export default function AnalyseScreen() {
   if (log.length === 0 && !lastAnalysis) return (
     <SafeAreaView style={s.safe}>
       <View style={s.scroll}>
-        <Text style={s.title}>Analyse</Text>
+        <Text style={s.title}>Analysis</Text>
         <View style={{ alignItems:'center', paddingVertical:60 }}>
           <Text style={{ fontSize:48, marginBottom:16 }}>📊</Text>
-          <Text style={{ fontSize:15, color:T.sub, marginBottom:8 }}>Ingen data ennå</Text>
+          <Text style={{ fontSize:15, color:T.sub, marginBottom:8 }}>No data yet</Text>
           <Text style={{ fontSize:13, color:T.muted, textAlign:'center', marginBottom:28, lineHeight:20 }}>
-            Logg noen søvnøkter for å se mønstre og statistikk
+            Log some sleep sessions to see patterns and statistics
           </Text>
           <TouchableOpacity onPress={() => setShowLog(true)} style={s.primaryBtn}>
-            <Text style={s.primaryBtnText}>Logg første økt</Text>
+            <Text style={s.primaryBtnText}>Log first session</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -338,22 +338,22 @@ export default function AnalyseScreen() {
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingTop:20, marginBottom:20 }}>
-          <Text style={s.title}>Analyse</Text>
+          <Text style={s.title}>Analysis</Text>
           <TouchableOpacity onPress={() => setShowLog(true)} style={s.logBtn}>
-            <Text style={s.logBtnText}>+ Logg økt</Text>
+            <Text style={s.logBtnText}>+ Log session</Text>
           </TouchableOpacity>
         </View>
 
         {/* ── Siste innspilte natt ── */}
         {lastAnalysis && (
           <View style={[s.card, { marginBottom:16 }]}>
-            <Text style={[s.mono10, { marginBottom:12 }]}>SISTE INNSPILTE NATT</Text>
+            <Text style={[s.mono10, { marginBottom:12 }]}>LAST RECORDED NIGHT</Text>
 
             <View style={{ flexDirection:'row', gap:10, marginBottom:14 }}>
               {[
-                ['VARIGHET', formatDur(lastAnalysis.duration), lastAnalysis.duration >= 420 ? T.accent : lastAnalysis.duration >= 300 ? T.gold : T.red],
-                ['SYKLUSER', String(lastAnalysis.cycles), T.blue],
-                ['KVALITET', `${lastAnalysis.quality}%`, lastAnalysis.quality >= 70 ? T.accent : lastAnalysis.quality >= 50 ? T.gold : T.red],
+                ['DURATION', formatDur(lastAnalysis.duration), lastAnalysis.duration >= 420 ? T.accent : lastAnalysis.duration >= 300 ? T.gold : T.red],
+                ['CYCLES',   String(lastAnalysis.cycles), T.blue],
+                ['QUALITY',  `${lastAnalysis.quality}%`, lastAnalysis.quality >= 70 ? T.accent : lastAnalysis.quality >= 50 ? T.gold : T.red],
               ].map(([l, v, c]) => (
                 <View key={l} style={s.statBox}>
                   <Text style={s.statLabel}>{l}</Text>
@@ -378,7 +378,7 @@ export default function AnalyseScreen() {
                 {lastAnalysis.signals.map(s =>
                   s === 'microphone' ? '🎤' : s === 'accelerometer' ? '📱' : '❤️'
                 ).join(' + ')}
-                {' '}{ { 1:'mikrofon', 2:'mikrofon + bevegelse', 3:'alle signaler' }[lastAnalysis.signals.length] }
+                {' '}{ { 1:'microphone', 2:'microphone + motion', 3:'all signals' }[lastAnalysis.signals.length] }
               </Text>
             )}
           </View>
@@ -387,10 +387,10 @@ export default function AnalyseScreen() {
         {/* ── Kalibrering ── */}
         {calib.dataPoints >= 3 && (
           <View style={[s.card, { borderLeftWidth:3, borderLeftColor:T.accent, marginBottom:16 }]}>
-            <Text style={[s.mono10, { marginBottom:12 }]}>PERSONLIG KALIBRERING</Text>
+            <Text style={[s.mono10, { marginBottom:12 }]}>PERSONAL CALIBRATION</Text>
             <View style={{ flexDirection:'row', gap:10, marginBottom:8 }}>
               {[
-                ['NETTER',    calib.dataPoints,                                                    T.accent],
+                ['NIGHTS',    calib.dataPoints,                                                    T.accent],
                 ['DLMO-FASE', `${calib.dlmoShift >= 0 ? '+' : ''}${Math.round(calib.dlmoShift * 10) / 10}t`, T.text],
                 ['AMPLITUDE', `${Math.round(calib.amplitude * 100)}%`, calib.amplitude > 0.8 ? T.accent : T.gold],
               ].map(([l, v, c]) => (
@@ -402,7 +402,7 @@ export default function AnalyseScreen() {
             </View>
             {calib.dataPoints < 7 && (
               <Text style={{ fontSize:12, color:T.muted }}>
-                {7 - calib.dataPoints} netter til for god kalibrering
+                {7 - calib.dataPoints} nights until good calibration
               </Text>
             )}
           </View>
@@ -413,10 +413,10 @@ export default function AnalyseScreen() {
             {/* ── Statistikk-grid ── */}
             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:12, marginBottom:16 }}>
               {[
-                ['SNITT SØVN',      formatDur(Math.round(avgDur)),     avgDur >= 420 ? T.accent : avgDur >= 300 ? T.gold : T.red],
-                ['SISTE 7 NETTER',  formatDur(Math.round(recent7avg)), recent7avg >= 420 ? T.accent : recent7avg >= 300 ? T.gold : T.red],
-                ['SNITT LEGGETID',  `${bedHH}:${bedMM}`,               T.sub],
-                ['LOGGEDE NETTER',  String(log.length),                 T.text],
+                ['AVG SLEEP',     formatDur(Math.round(avgDur)),     avgDur >= 420 ? T.accent : avgDur >= 300 ? T.gold : T.red],
+                ['LAST 7 NIGHTS', formatDur(Math.round(recent7avg)), recent7avg >= 420 ? T.accent : recent7avg >= 300 ? T.gold : T.red],
+                ['AVG BEDTIME',   `${bedHH}:${bedMM}`,               T.sub],
+                ['LOGGED NIGHTS', String(log.length),                 T.text],
               ].map(([l, v, c]) => (
                 <View key={l} style={[s.card, { flex:1, minWidth:'45%', margin:0 }]}>
                   <Text style={s.statLabel}>{l}</Text>
@@ -428,7 +428,7 @@ export default function AnalyseScreen() {
             {/* ── Søvnlengde-graf ── */}
             <View style={s.card}>
               <Text style={[s.mono10, { marginBottom:14 }]}>
-                SØVNLENGDE – SISTE {chart.length} NETTER
+                SLEEP DURATION – LAST {chart.length} NIGHTS
               </Text>
               <View style={{ flexDirection:'row', alignItems:'flex-end', height:80, gap:4 }}>
                 {chart.map((e, i) => {
@@ -449,7 +449,7 @@ export default function AnalyseScreen() {
                 })}
               </View>
               <View style={{ flexDirection:'row', justifyContent:'space-between', marginTop:12 }}>
-                {[[T.accent,'7t+ god'],[T.gold,'5-7t ok'],[T.red,'Under 5t']].map(([c,l]) => (
+                {[[T.accent,'7h+ good'],[T.gold,'5-7h ok'],[T.red,'Under 5h']].map(([c,l]) => (
                   <View key={l} style={{ flexDirection:'row', alignItems:'center', gap:4 }}>
                     <View style={{ width:8, height:8, borderRadius:4, backgroundColor:c }} />
                     <Text style={{ fontSize:10, color:T.sub }}>{l}</Text>
@@ -460,23 +460,23 @@ export default function AnalyseScreen() {
 
             {/* ── Melatonin-ring ── */}
             <View style={s.card}>
-              <Text style={[s.mono10, { marginBottom:14 }]}>DIN MELATONIN-KURVE (24T)</Text>
+              <Text style={[s.mono10, { marginBottom:14 }]}>YOUR MELATONIN CURVE (24H)</Text>
               <View style={{ alignItems:'center', marginBottom:12 }}>
                 <MelRing shift={calib.dlmoShift} amp={calib.amplitude} size={160} />
               </View>
               <Text style={{ fontSize:12, color:T.muted, textAlign:'center', lineHeight:20 }}>
-                DLMO-fase: {calib.dlmoShift >= 0 ? '+' : ''}{Math.round(calib.dlmoShift * 10) / 10}t fra standard · Amplitude {Math.round(calib.amplitude * 100)}%
+                DLMO phase: {calib.dlmoShift >= 0 ? '+' : ''}{Math.round(calib.dlmoShift * 10) / 10}h from standard · Amplitude {Math.round(calib.amplitude * 100)}%
               </Text>
               {calib.amplitude < 0.8 && (
                 <Text style={{ fontSize:11, color:T.gold, textAlign:'center', marginTop:4 }}>
-                  Uregelmessig søvnmønster demper melatonin
+                  Irregular sleep pattern dampens melatonin
                 </Text>
               )}
             </View>
 
             {/* ── Søvnlogg ── */}
             <View style={[s.card, { marginBottom:12 }]}>
-              <Text style={[s.mono10, { marginBottom:14 }]}>SØVNLOGG</Text>
+              <Text style={[s.mono10, { marginBottom:14 }]}>SLEEP LOG</Text>
               {log.slice(-10).reverse().map((e, i) => {
                 const dur = e.sleepEnd - e.sleepStart;
                 const col = dur >= 420 ? T.accent : dur >= 300 ? T.gold : T.red;

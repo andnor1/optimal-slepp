@@ -47,7 +47,7 @@ export function useSmartAlarm() {
 
     const notifId = await Notifications.scheduleNotificationAsync({
       content: {
-        title: 'Optimal Slepp – tid for å stå opp',
+        title: 'Optimal Slepp – time to wake up',
         body: alarm.label,
         sound: true,
         priority: Notifications.AndroidNotificationPriority.MAX,
@@ -70,7 +70,7 @@ export function useSmartAlarm() {
             && now >= a.smartWakeStart && now <= a.fireAt
             && depth >= LIGHT_SLEEP_THRESHOLD) {
           changed = true;
-          triggerAlarm({ ...a, label: `Smart oppvåkning · ${minToTime(now)}` });
+          triggerAlarm({ ...a, label: `Smart Wake · ${minToTime(now)}` });
           return { ...a, smartFired: true, fired: true };
         }
         return a;

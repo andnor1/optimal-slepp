@@ -12,11 +12,11 @@ export default function TabLayout() {
       tabBarInactiveTintColor: T.muted,
       tabBarLabelStyle: { fontSize: 10, fontWeight: '600', letterSpacing: 0.5 },
     }}>
-      <Tabs.Screen name="index"   options={{ title:'Hjem',     tabBarIcon:({color})=><Ionicons name="home-outline"      size={24} color={color}/> }}/>
-      <Tabs.Screen name="plan"    options={{ title:'Plan',     tabBarIcon:({color})=><Ionicons name="calendar-outline"  size={24} color={color}/> }}/>
+      <Tabs.Screen name="index"   options={{ title:'Home',     tabBarIcon:({color})=><Ionicons name="home-outline"      size={24} color={color}/> }}/>
+      <Tabs.Screen name="plan"    options={{ title:'Schedule', tabBarIcon:({color})=><Ionicons name="calendar-outline"  size={24} color={color}/> }}/>
       <Tabs.Screen name="alarm"   options={{ title:'Alarm',    tabBarIcon:({color})=><Ionicons name="alarm-outline"     size={24} color={color}/> }}/>
-      <Tabs.Screen name="analyse" options={{ title:'Analyse',  tabBarIcon:({color})=><Ionicons name="stats-chart-outline" size={24} color={color}/> }}/>
-      <Tabs.Screen name="profil"  options={{ title:'Profil',   tabBarIcon:({color})=><Ionicons name="person-outline"    size={24} color={color}/> }}/>
+      <Tabs.Screen name="analyse" options={{ title:'Analysis', tabBarIcon:({color})=><Ionicons name="stats-chart-outline" size={24} color={color}/> }}/>
+      <Tabs.Screen name="profil"  options={{ title:'Profile',  tabBarIcon:({color})=><Ionicons name="person-outline"    size={24} color={color}/> }}/>
     </Tabs>
   );
 }

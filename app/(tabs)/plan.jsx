@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// PLAN-SKJERM  –  søvnvinduer + beregning
+// SCHEDULE SCREEN  –  sleep windows + calculation
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useCallback } from 'react';
 import {
@@ -27,13 +27,13 @@ const T = {
   text:'#E2EAF4', sub:'#7A96B8', muted:'#3A4F6A',
 };
 
-const DAYS = ['søn','man','tir','ons','tor','fre','lør'];
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 function friendlyDate(dateStr) {
   const d = new Date(dateStr + 'T12:00:00');
   return `${DAYS[d.getDay()]} ${d.getDate()}.${d.getMonth()+1}`;
 }
 
-// ─── Label helper (brukes for FORANKRING) ────────────────────────────────────
+// ─── Label helper (used for ANCHOR) ──────────────────────────────────────────
 function FieldLabel({ children }) {
   return <Text style={s.fieldLabel}>{children}</Text>;
 }
@@ -70,7 +70,7 @@ function QArc({ value }) {
       </Svg>
       <View>
         <Text style={{ fontSize:20, fontWeight:'700', color:col, lineHeight:24 }}>{value}%</Text>
-        <Text style={{ fontSize:10, color:T.muted, letterSpacing:1 }}>KVALITET</Text>
+        <Text style={{ fontSize:10, color:T.muted, letterSpacing:1 }}>QUALITY</Text>
       </View>
     </View>
   );
@@ -97,9 +97,9 @@ function TimeBar({ sleepStart, sleepEnd, winStart, winEnd }) {
 }
 
 const ANCHOR_OPTIONS = [
-  { value:'none',     label:'Auto – melatonin-optimalisert' },
-  { value:'bedtime',  label:'Fast leggetid (fra Fra-tid)' },
-  { value:'waketime', label:'Fast opptid (til Til-tid)' },
+  { value:'none',     label:'Auto – Melatonin Optimized' },
+  { value:'bedtime',  label:'Fixed Bedtime (from start time)' },
+  { value:'waketime', label:'Fixed Wake Time (to end time)' },
 ];
 
 function AnchorPicker({ value, onChange }) {
@@ -176,21 +176,21 @@ export default function PlanScreen() {
     <SafeAreaView style={s.safe}>
       <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
 
-        <Text style={s.title}>Søvnplan</Text>
+        <Text style={s.title}>Sleep Schedule</Text>
 
-        {/* ── Sist våken ── */}
-        <Text style={s.sectionLabel}>Sist våken</Text>
+        {/* ── Last Woke Up ── */}
+        <Text style={s.sectionLabel}>Last Woke Up</Text>
         <Card style={{ marginBottom:16 }}>
           <View style={{ flexDirection:'row', gap:12 }}>
-            <DatePicker label="DATO"        value={lwd} onChange={setLwd} />
-            <TimePicker label="KLOKKESLETT" value={lwt} onChange={setLwt} />
+            <DatePicker label="DATE" value={lwd} onChange={setLwd} />
+            <TimePicker label="TIME" value={lwt} onChange={setLwt} />
           </View>
         </Card>
 
-        {/* ── Sovevinduer ── */}
-        <Text style={s.sectionLabel}>Sovevinduer</Text>
+        {/* ── Sleep Windows ── */}
+        <Text style={s.sectionLabel}>Sleep Windows</Text>
         <Text style={s.sectionHint}>
-          Når kan du sove? Appen velger optimalt tidspunkt innenfor hvert vindu.
+          When can you sleep? The app picks the optimal time within each window.
         </Text>
 
         {windows.map((w, idx) => (
@@ -208,18 +208,18 @@ export default function PlanScreen() {
             </View>
 
             <View style={{ flexDirection:'row', gap:10, marginBottom:12 }}>
-              <DatePicker label="DATO" value={w.date}      onChange={v => updateWindow(w.id,'date',v)} />
-              <TimePicker label="FRA"  value={w.startTime} onChange={v => updateWindow(w.id,'startTime',v)} />
-              <TimePicker label="TIL"  value={w.endTime}   onChange={v => updateWindow(w.id,'endTime',v)} />
+              <DatePicker label="DATE" value={w.date}      onChange={v => updateWindow(w.id,'date',v)} />
+              <TimePicker label="FROM" value={w.startTime} onChange={v => updateWindow(w.id,'startTime',v)} />
+              <TimePicker label="TO"   value={w.endTime}   onChange={v => updateWindow(w.id,'endTime',v)} />
             </View>
 
-            <FieldLabel>FORANKRING</FieldLabel>
+            <FieldLabel>ANCHOR</FieldLabel>
             <AnchorPicker value={w.anchor || 'none'} onChange={v => updateWindow(w.id,'anchor',v)} />
           </Card>
         ))}
 
         <TouchableOpacity onPress={addWindow} style={s.addWindowBtn}>
-          <Text style={s.addWindowBtnText}>+ Legg til sovingsvindu</Text>
+          <Text style={s.addWindowBtnText}>+ Add Sleep Window</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -227,7 +227,7 @@ export default function PlanScreen() {
           disabled={windows.length === 0}
           style={[s.primaryBtn, windows.length === 0 && s.primaryBtnDisabled]}>
           <Text style={[s.primaryBtnText, windows.length === 0 && { color: T.muted }]}>
-            Beregn søvnplan
+            Calculate Sleep Plan
           </Text>
         </TouchableOpacity>
 
@@ -235,8 +235,8 @@ export default function PlanScreen() {
         {results.length > 0 && (
           <>
             <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginTop:28, marginBottom:14 }}>
-              <Text style={{ fontSize:14, fontWeight:'600', color:T.text }}>Din søvnplan</Text>
-              <Pill>{formatDur(total)} totalt</Pill>
+              <Text style={{ fontSize:14, fontWeight:'600', color:T.text }}>Your Sleep Schedule</Text>
+              <Pill>{formatDur(total)} total</Pill>
             </View>
 
             {results.map((r, i) => {
@@ -244,7 +244,7 @@ export default function PlanScreen() {
               const we = minToTime(r.win.endMin);
               if (r.skip) return (
                 <Card key={i} accentColor={T.muted} style={{ marginBottom:10 }}>
-                  <Text style={s.mono9}>VINDU {i+1} · {ws}–{we}</Text>
+                  <Text style={s.mono9}>WINDOW {i+1} · {ws}–{we}</Text>
                   <Text style={{ fontSize:13, color:T.sub, marginTop:4 }}>{r.reason}</Text>
                 </Card>
               );
@@ -253,7 +253,7 @@ export default function PlanScreen() {
               return (
                 <Card key={i} accentColor={T.accent} style={{ marginBottom:10 }}>
                   <Text style={[s.mono9, { marginBottom:4 }]}>
-                    VINDU {i+1} · {friendlyDate(r.win.date)} · {ws}–{we}
+                    WINDOW {i+1} · {friendlyDate(r.win.date)} · {ws}–{we}
                   </Text>
                   <Text style={s.bigTime}>
                     {minToTime(r.sleepStart)}
@@ -267,9 +267,9 @@ export default function PlanScreen() {
 
                   <View style={{ flexDirection:'row', gap:10, marginBottom:14 }}>
                     {[
-                      ['VARIGHET',  formatDur(r.duration), T.accent],
-                      ['SYKLUSER',  `${r.cycles}×90m`,     T.text],
-                      ['VÅKEN FØR', `${r.hoursAwake}t`,    T.sub],
+                      ['DURATION',     formatDur(r.duration), T.accent],
+                      ['CYCLES',       `${r.cycles}×90m`,     T.text],
+                      ['AWAKE BEFORE', `${r.hoursAwake}h`,    T.sub],
                     ].map(([l, v, c]) => (
                       <View key={l} style={s.statBox}>
                         <Text style={s.statLabel}>{l}</Text>
@@ -281,35 +281,35 @@ export default function PlanScreen() {
                   <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
                     <QArc value={r.quality} />
                     <Pill color={r.melOnset > 60 ? T.accent : r.melOnset > 30 ? T.gold : T.red}>
-                      {r.melOnset > 60 ? 'Natt' : r.melOnset > 30 ? 'Delvis' : 'Dag'} · {r.melOnset}%
+                      {r.melOnset > 60 ? 'Night' : r.melOnset > 30 ? 'Partial' : 'Day'} · {r.melOnset}%
                     </Pill>
                   </View>
 
                   <TouchableOpacity
                     onPress={() => setExpanded(d => ({ ...d, [i]: !d[i] }))}
                     style={s.debugToggle}>
-                    <Text style={{ fontSize:12, color:T.sub }}>Hvorfor dette?</Text>
+                    <Text style={{ fontSize:12, color:T.sub }}>Why this?</Text>
                     <Text style={{ fontSize:12, color:T.muted }}>{open ? '▲' : '▾'}</Text>
                   </TouchableOpacity>
 
                   {open && (
                     <View style={s.debugBox}>
                       <Text style={s.debugLine}>
-                        <Text style={{ color:T.text }}>Mål: </Text>
-                        {r.debug.rawTargetH}t ({r.hoursAwake}t våken)
+                        <Text style={{ color:T.text }}>Target: </Text>
+                        {r.debug.rawTargetH}h ({r.hoursAwake}h awake)
                       </Text>
                       {r.debug.windowConstraint && (
                         <Text style={[s.debugLine, { color:T.gold }]}>
-                          ⚠ Vindu begrenser til {r.debug.windowMaxH}t
+                          ⚠ Window limits to {r.debug.windowMaxH}h
                         </Text>
                       )}
                       <Text style={s.debugLine}>
                         <Text style={{ color:T.text }}>Melatonin: </Text>
-                        {r.melOnset}% {r.melOnset > 60 ? '— natt ✓' : r.melOnset > 30 ? '— delvis' : '— dag, mål justert'}
+                        {r.melOnset}% {r.melOnset > 60 ? '— night ✓' : r.melOnset > 30 ? '— partial' : '— day, target adjusted'}
                       </Text>
                       <Text style={s.debugLine}>
-                        <Text style={{ color:T.text }}>Budsjett igjen: </Text>
-                        {r.debug.budgetLeft}t
+                        <Text style={{ color:T.text }}>Budget left: </Text>
+                        {r.debug.budgetLeft}h
                       </Text>
                     </View>
                   )}

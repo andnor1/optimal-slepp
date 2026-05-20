@@ -176,7 +176,7 @@ export function optimizeSleep(windows,lastWokeMin,calib={}) {
   for(let i=0;i<wins.length;i++){
     const win=wins[i],next=wins[i+1]||null,dur=win.endMin-win.startMin;
     const hoursAwake=(win.startMin-lastWake)/60;
-    if(hoursAwake<MIN_WAKE_HOURS){results.push({win,skip:true,reason:`${Math.round(hoursAwake*10)/10}t siden sist`,hoursAwake,slept});continue;}
+    if(hoursAwake<MIN_WAKE_HOURS){results.push({win,skip:true,reason:`${Math.round(hoursAwake*10)/10}h since last`,hoursAwake,slept});continue;}
     const rawTarget=hoursAwake>=20?8:hoursAwake>=14?7.5:hoursAwake>=9?7:6;
     const bestMel=Math.max(melatoninSleepScore(Math.floor(win.startMin%1440/60),shift,amp),melatoninSleepScore(Math.floor(win.endMin%1440/60),shift,amp));
     let targetMin=(rawTarget+(bestMel>60?0:bestMel>30?-0.5:-1))*60;
@@ -188,7 +188,7 @@ export function optimizeSleep(windows,lastWokeMin,calib={}) {
     let cycles=(Math.abs(up*SLEEP_CYCLE_MIN-targetMin)<=15&&up*SLEEP_CYCLE_MIN<=dur)?up:(Math.abs(dn*SLEEP_CYCLE_MIN-targetMin)<=Math.abs(up*SLEEP_CYCLE_MIN-targetMin)?dn:up);
     cycles=Math.max(1,cycles);let recMin=cycles*SLEEP_CYCLE_MIN;
     while(recMin>dur&&cycles>1){cycles--;recMin=cycles*SLEEP_CYCLE_MIN;}
-    if(recMin>dur){results.push({win,skip:true,reason:'For kort vindu (min 90 min)',hoursAwake,slept});continue;}
+    if(recMin>dur){results.push({win,skip:true,reason:'Window too short (min 90 min)',hoursAwake,slept});continue;}
     let bestStart=win.startMin;
     if(win.anchor==='bedtime') bestStart=win.startMin;
     else if(win.anchor==='waketime') bestStart=Math.max(win.startMin,win.endMin-recMin);

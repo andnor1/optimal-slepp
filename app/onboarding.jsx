@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// ONBOARDING-FLOW  –  6 steg med progress-bar og animasjon
+// ONBOARDING FLOW  –  6 steps with progress bar and animation
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useRef } from 'react';
 import {
@@ -27,53 +27,53 @@ const STEPS = [
   {
     id:'welcome',
     icon:'🌙',
-    title:'Velkommen til\nOptimal Slepp',
-    sub:'Søvnoptimering for deg som ikke sover samme tid hver dag.',
-    cta:'Kom i gang',
+    title:'Welcome to\nOptimal Slepp',
+    sub:'Sleep optimization for those who don\'t sleep at the same time every day.',
+    cta:'Get started',
   },
   {
     id:'problem',
     icon:'😵',
-    title:'Turnus ødelegger\nsøvnen din',
-    sub:'Når du bytter mellom dag- og nattevakter mister kroppen rytmen. Du legger deg men klarer ikke sove – eller sover for mye og er fortsatt trøtt.',
-    cta:'Fortsett',
+    title:'Shift work disrupts\nyour sleep',
+    sub:'When you switch between day and night shifts, your body loses its rhythm. You lie down but can\'t sleep – or sleep too much and still feel tired.',
+    cta:'Continue',
   },
   {
     id:'solution',
     icon:'🧬',
-    title:'Appen bruker\nmelatonin-data',
-    sub:'Vi modellerer kroppens melatonin-kurve og beregner nøyaktig når og hvor lenge du bør sove – basert på dine sovevinduer og søvnhistorikk.',
-    cta:'Fortsett',
+    title:'The app uses\nmelatonin data',
+    sub:'We model your body\'s melatonin curve and calculate exactly when and how long you should sleep – based on your sleep windows and history.',
+    cta:'Continue',
   },
   {
     id:'learns',
     icon:'📈',
-    title:'Blir bedre\nover tid',
-    sub:'Logg søvnen din etter hver økt. Etter 3+ netter kalibrerer appen din personlige fase og amplitude.',
-    cta:'Fortsett',
+    title:'Gets better\nover time',
+    sub:'Log your sleep after each session. After 3+ nights the app calibrates your personal phase and amplitude.',
+    cta:'Continue',
   },
   {
     id:'name',
     icon:'👋',
-    title:'Hva heter du?',
-    sub:'Valgfritt – brukes kun til hilsen på hjemskjermen.',
-    cta:'Fortsett',
+    title:'What\'s your name?',
+    sub:'Optional – only used for the greeting on the home screen.',
+    cta:'Continue',
     input:'name',
   },
   {
     id:'woke',
     icon:'⏰',
-    title:'Når sto du opp\ni dag?',
-    sub:'Dette er startpunktet for den første søvnplanen din.',
-    cta:'Start appen',
+    title:'When did you wake up\ntoday?',
+    sub:'This is the starting point for your first sleep schedule.',
+    cta:'Start app',
     input:'time',
   },
 ];
 
 const LEARN_MILESTONES = [
-  [T.accent, '3+ netter',  'Personlig melatonin-fase estimert'],
-  [T.blue,   '7+ netter',  'God kalibrering av søvnmønster'],
-  [T.gold,   '30+ netter', 'Presis individuell søvnmodell'],
+  [T.accent, '3+ nights',  'Personal melatonin phase estimated'],
+  [T.blue,   '7+ nights',  'Good calibration of sleep pattern'],
+  [T.gold,   '30+ nights', 'Precise individual sleep model'],
 ];
 
 export default function OnboardingScreen() {
@@ -105,7 +105,7 @@ export default function OnboardingScreen() {
 
   const goNext = async () => {
     if (isLast) {
-      // Lagre og naviger
+      // Save and navigate
       await Storage.setOnboarded();
       if (name.trim()) await Storage.saveUsername(name.trim());
       const today = localDate(0);
@@ -136,7 +136,7 @@ export default function OnboardingScreen() {
         <View style={s.topBar}>
           {step > 0 && (
             <TouchableOpacity onPress={goBack} hitSlop={12}>
-              <Text style={s.backBtn}>← Tilbake</Text>
+              <Text style={s.backBtn}>← Back</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -168,7 +168,7 @@ export default function OnboardingScreen() {
               autoFocus
               returnKeyType="done"
               onSubmitEditing={goNext}
-              placeholder="Ola Nordmann"
+              placeholder="Your name"
               placeholderTextColor={T.muted}
               style={s.nameInput}
             />
@@ -193,12 +193,12 @@ export default function OnboardingScreen() {
           {/* CTA */}
           <TouchableOpacity onPress={goNext} style={s.primaryBtn}>
             <Text style={s.primaryBtnText}>
-              {isLast ? '🚀 Start appen' : current.cta}
+              {isLast ? '🚀 Start the app' : current.cta}
             </Text>
           </TouchableOpacity>
 
           {step === 0 && (
-            <Text style={s.disclaimer}>Ingen konto nødvendig · Alt lagres lokalt</Text>
+            <Text style={s.disclaimer}>No account needed · Everything stored locally</Text>
           )}
         </View>
       </KeyboardAvoidingView>

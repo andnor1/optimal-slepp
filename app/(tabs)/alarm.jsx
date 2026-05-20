@@ -61,7 +61,7 @@ export default function AlarmScreen() {
     const entry = {
       id: Date.now(),
       fireAt,
-      label: `Vekking ${newTime}`,
+      label: `Alarm ${newTime}`,
       smartWakeEnabled: smartWake,
       smartWakeStart: fireAt - smartMins,
       fired: false,
@@ -86,18 +86,18 @@ export default function AlarmScreen() {
   const promptHealth = () => {
     if (!isHealthAvailable()) {
       Alert.alert(
-        'Apple Health ikke tilgjengelig',
-        'Integrasjon med Apple Health krever en native build (EAS Build). Kjør:\n\nnpm install react-native-health\nnpx expo prebuild\n\nAkselerometer er allerede aktivt.',
+        'Apple Health unavailable',
+        'Apple Health integration requires a native build (EAS Build). Run:\n\nnpm install react-native-health\nnpx expo prebuild\n\nThe accelerometer is already active.',
         [{ text: 'OK' }],
       );
       return;
     }
     requestHealthPermissions().then(granted => {
       Alert.alert(
-        granted ? 'Tilgang innvilget' : 'Tilgang avslått',
+        granted ? 'Access granted' : 'Access denied',
         granted
-          ? 'Pulsmålinger fra Apple Watch vil bli brukt under neste opptak.'
-          : 'Gå til Innstillinger → Helse → Optimal Slepp for å gi tilgang.',
+          ? 'Heart rate readings from Apple Watch will be used during the next recording.'
+          : 'Go to Settings → Health → Optimal Slepp to grant access.',
         [{ text: 'OK' }],
       );
     });
@@ -105,15 +105,15 @@ export default function AlarmScreen() {
 
   const depthPct   = Math.round(recorder.depth * 100);
   const depthColor = recorder.depth > 0.65 ? T.accent : recorder.depth > 0.35 ? T.gold : T.blue;
-  const depthLabel = recorder.depth > 0.65 ? 'Lett søvn' : recorder.depth > 0.35 ? 'Mellom' : 'Dyp søvn';
+  const depthLabel = recorder.depth > 0.65 ? 'Light Sleep' : recorder.depth > 0.35 ? 'Moderate' : 'Deep Sleep';
 
   const SIGNAL_ICONS = { microphone: '🎤', accelerometer: '📱', heartRate: '❤️' };
 
   return (
     <SafeAreaView style={{ flex:1, backgroundColor:T.bg }}>
       <ScrollView contentContainerStyle={{ padding:20 }}>
-        <Text style={{ fontSize:26, fontWeight:'800', color:T.text, marginBottom:4 }}>Vekkerklokke</Text>
-        <Text style={{ fontSize:14, color:T.sub, marginBottom:24 }}>Smart oppvåkning med søvnanalyse</Text>
+        <Text style={{ fontSize:26, fontWeight:'800', color:T.text, marginBottom:4 }}>Alarm Clock</Text>
+        <Text style={{ fontSize:14, color:T.sub, marginBottom:24 }}>Smart Wake with sleep analysis</Text>
 
         {/* ── Ringing overlay ── */}
         {alarm.ringing && (
@@ -122,7 +122,7 @@ export default function AlarmScreen() {
               onPress={alarm.stopAlarm}
               style={{ backgroundColor:T.red, borderRadius:20, padding:24, alignItems:'center' }}>
               <Text style={{ fontSize:32 }}>⏹</Text>
-              <Text style={{ fontSize:20, fontWeight:'800', color:'white', marginTop:4 }}>Stopp alarm</Text>
+              <Text style={{ fontSize:20, fontWeight:'800', color:'white', marginTop:4 }}>Stop Alarm</Text>
               {alarm.currentAlarm && (
                 <Text style={{ fontSize:13, color:'rgba(255,255,255,.7)', marginTop:4 }}>
                   {alarm.currentAlarm.label}
@@ -135,23 +135,23 @@ export default function AlarmScreen() {
         {/* ── Legg til alarm ── */}
         <View style={[styles.card, { marginBottom:16 }]}>
           <Text style={{ fontSize:11, color:T.muted, letterSpacing:1, fontWeight:'600', marginBottom:14 }}>
-            NY ALARM
+            NEW ALARM
           </Text>
 
           <View style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:16 }}>
             <View style={{ flex:1 }}>
-              <TimePicker label="VEKKETID" value={newTime} onChange={setNewTime} />
+              <TimePicker label="WAKE TIME" value={newTime} onChange={setNewTime} />
             </View>
             <TouchableOpacity onPress={addAlarm} style={styles.addBtn}>
-              <Text style={{ fontSize:13, fontWeight:'700', color:'#060914' }}>+ Legg til</Text>
+              <Text style={{ fontSize:13, fontWeight:'700', color:'#060914' }}>+ Add</Text>
             </TouchableOpacity>
           </View>
 
           {/* Smart wake toggle */}
           <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom: smartWake ? 12 : 0 }}>
             <View>
-              <Text style={{ fontSize:13, fontWeight:'600', color:T.text }}>Smart oppvåkning</Text>
-              <Text style={{ fontSize:11, color:T.muted, marginTop:2 }}>Vekkes i lett søvn innenfor vinduet</Text>
+              <Text style={{ fontSize:13, fontWeight:'600', color:T.text }}>Smart Wake</Text>
+              <Text style={{ fontSize:11, color:T.muted, marginTop:2 }}>Wake in light sleep within the window</Text>
             </View>
             <Switch
               value={smartWake}
@@ -174,7 +174,7 @@ export default function AlarmScreen() {
                   </Text>
                 </TouchableOpacity>
               ))}
-              <Text style={{ fontSize:11, color:T.muted, alignSelf:'center', marginLeft:4 }}>før alarm</Text>
+              <Text style={{ fontSize:11, color:T.muted, alignSelf:'center', marginLeft:4 }}>before alarm</Text>
             </View>
           )}
         </View>
@@ -183,7 +183,7 @@ export default function AlarmScreen() {
         {alarm.alarms.length > 0 && (
           <View style={[styles.card, { marginBottom:16 }]}>
             <Text style={{ fontSize:11, color:T.muted, letterSpacing:1, fontWeight:'600', marginBottom:14 }}>
-              AKTIVE ALARMER
+              ACTIVE ALARMS
             </Text>
             {alarm.alarms.map((a, i) => (
               <View
@@ -199,7 +199,7 @@ export default function AlarmScreen() {
                   <Text style={{ fontSize:11, color:T.muted, marginTop:2 }}>
                     {a.smartWakeEnabled
                       ? `Smart: ${minToTime(a.smartWakeStart)} – ${minToTime(a.fireAt)}`
-                      : 'Fast alarm'}
+                      : 'Fixed alarm'}
                   </Text>
                 </View>
                 <TouchableOpacity onPress={() => removeAlarm(a.id)} hitSlop={10}>
@@ -220,11 +220,11 @@ export default function AlarmScreen() {
         }]}>
           <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start', marginBottom: recorder.isRecording ? 16 : 0 }}>
             <View style={{ flex:1, marginRight:12 }}>
-              <Text style={{ fontSize:15, fontWeight:'600', color:T.text, marginBottom:4 }}>🎤 Søvnopptak</Text>
+              <Text style={{ fontSize:15, fontWeight:'600', color:T.text, marginBottom:4 }}>🎤 Sleep Recording</Text>
               <Text style={{ fontSize:12, color:T.muted, lineHeight:18 }}>
                 {recorder.isRecording
-                  ? `Tar opp – ${recorder.samples.length} samples (${formatDur(Math.round(recorder.samples.length / 6))} inn i natten)`
-                  : 'Start opptak ved leggetid. Mikrofonen analyserer søvndybde hele natten.'}
+                  ? `Recording – ${recorder.samples.length} samples (${formatDur(Math.round(recorder.samples.length / 6))} into the night)`
+                  : 'Start recording at bedtime. The microphone analyzes sleep depth throughout the night.'}
               </Text>
             </View>
             <TouchableOpacity
@@ -236,7 +236,7 @@ export default function AlarmScreen() {
                 borderColor: recorder.isRecording ? `${T.red}40` : `${T.accent}40`,
               }}>
               <Text style={{ fontSize:13, fontWeight:'600', color: recorder.isRecording ? T.red : T.accent }}>
-                {recorder.isRecording ? 'Stopp' : 'Start'}
+                {recorder.isRecording ? 'Stop' : 'Start'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -249,14 +249,14 @@ export default function AlarmScreen() {
                   <View key={sig} style={[styles.sigBadge, sig === 'heartRate' && { borderColor:`${T.red}50`, backgroundColor:`${T.red}10` }]}>
                     <Text style={{ fontSize:11 }}>{SIGNAL_ICONS[sig]}</Text>
                     <Text style={{ fontSize:10, color: sig === 'heartRate' ? T.red : T.accent }}>
-                      {sig === 'microphone' ? 'Mikrofon' : sig === 'accelerometer' ? 'Bevegelse' : 'Puls'}
+                      {sig === 'microphone' ? 'Microphone' : sig === 'accelerometer' ? 'Motion' : 'Heart Rate'}
                     </Text>
                   </View>
                 ))}
               </View>
               {!recorder.healthReady && (
                 <TouchableOpacity onPress={promptHealth} style={styles.healthBtn}>
-                  <Text style={{ fontSize:11, color:T.sub }}>+ Legg til puls</Text>
+                  <Text style={{ fontSize:11, color:T.sub }}>+ Add heart rate</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -265,14 +265,14 @@ export default function AlarmScreen() {
           {recorder.isRecording && (
             <>
               <Text style={{ fontSize:10, color:T.muted, letterSpacing:1, marginBottom:6 }}>
-                SØVNDYBDE  ·  {depthLabel.toUpperCase()}
+                SLEEP DEPTH  ·  {depthLabel.toUpperCase()}
               </Text>
               <View style={{ height:8, backgroundColor:T.elevated, borderRadius:4, overflow:'hidden', marginBottom:4 }}>
                 <View style={{ width:`${depthPct}%`, height:'100%', backgroundColor:depthColor, borderRadius:4 }} />
               </View>
               <View style={{ flexDirection:'row', justifyContent:'space-between' }}>
-                <Text style={{ fontSize:9, color:T.muted }}>DYPSØVN</Text>
-                <Text style={{ fontSize:9, color:T.muted }}>LETT SØVN</Text>
+                <Text style={{ fontSize:9, color:T.muted }}>DEEP SLEEP</Text>
+                <Text style={{ fontSize:9, color:T.muted }}>LIGHT SLEEP</Text>
               </View>
 
               <View style={{ flexDirection:'row', alignItems:'flex-end', height:30, marginTop:12, gap:2 }}>
@@ -289,7 +289,7 @@ export default function AlarmScreen() {
                   />
                 ))}
               </View>
-              <Text style={{ fontSize:9, color:T.muted, marginTop:4 }}>LIVE LYDNIVÅ – SISTE 5 MIN</Text>
+              <Text style={{ fontSize:9, color:T.muted, marginTop:4 }}>LIVE AUDIO LEVEL – LAST 5 MIN</Text>
             </>
           )}
         </View>
@@ -298,13 +298,13 @@ export default function AlarmScreen() {
         {recorder.analysis && (
           <View style={[styles.card, { borderColor:`${T.accent}40`, marginBottom:16 }]}>
             <Text style={{ fontSize:11, color:T.muted, letterSpacing:1, fontWeight:'600', marginBottom:12 }}>
-              SØVNANALYSE FRA I NATT
+              SLEEP ANALYSIS FROM LAST NIGHT
             </Text>
             <View style={{ flexDirection:'row', gap:10, marginBottom:14 }}>
               {[
-                ['VARIGHET', formatDur(recorder.analysis.duration), T.accent],
-                ['SYKLUSER', `${recorder.analysis.cycles}×`,        T.text],
-                ['KVALITET', `${recorder.analysis.quality}%`,        recorder.analysis.quality >= 75 ? T.accent : T.gold],
+                ['DURATION', formatDur(recorder.analysis.duration), T.accent],
+                ['CYCLES',   `${recorder.analysis.cycles}×`,        T.text],
+                ['QUALITY',  `${recorder.analysis.quality}%`,        recorder.analysis.quality >= 75 ? T.accent : T.gold],
               ].map(([l, v, c]) => (
                 <View key={l} style={{ flex:1, backgroundColor:T.elevated, borderRadius:12, padding:12 }}>
                   <Text style={{ fontSize:9, color:T.muted, letterSpacing:1, marginBottom:4 }}>{l}</Text>
@@ -314,7 +314,7 @@ export default function AlarmScreen() {
             </View>
 
             {/* Phase bar chart using p.phase for colors */}
-            <Text style={{ fontSize:10, color:T.muted, marginBottom:6 }}>SØVNKURVE (siste natt)</Text>
+            <Text style={{ fontSize:10, color:T.muted, marginBottom:6 }}>SLEEP CURVE (last night)</Text>
             <View style={{ flexDirection:'row', alignItems:'flex-end', height:50, gap:1 }}>
               {recorder.analysis.phases.filter((_,i) => i % 12 === 0).map((p, i) => (
                 <View
@@ -338,9 +338,9 @@ export default function AlarmScreen() {
 
         {/* ── Slik fungerer det ── */}
         <View style={[styles.card, { backgroundColor:T.goldLo, borderColor:`${T.gold}30` }]}>
-          <Text style={{ fontSize:13, fontWeight:'600', color:T.gold, marginBottom:8 }}>💡 Slik fungerer det</Text>
+          <Text style={{ fontSize:13, fontWeight:'600', color:T.gold, marginBottom:8 }}>💡 How it works</Text>
           <Text style={{ fontSize:12, color:T.sub, lineHeight:20 }}>
-            Start opptak når du legger deg. Mikrofonen sampler lydnivå hvert 10. sekund hele natten. Appen finner søvnsyklusene dine og vekker deg i lett søvn innenfor alarmvinduet. Legg telefonen ved siden av sengen med skjermen ned.
+            Start recording when you go to bed. The microphone samples audio level every 10 seconds throughout the night. The app finds your sleep cycles and wakes you in light sleep within the alarm window. Place your phone next to the bed with the screen facing down.
           </Text>
         </View>
       </ScrollView>

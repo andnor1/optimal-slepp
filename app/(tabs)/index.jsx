@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// HJEM-SKJERM
+// HOME SCREEN
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useState, useCallback } from 'react';
 import {
@@ -27,7 +27,7 @@ const T = {
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const DAYS = ['søn','man','tir','ons','tor','fre','lør'];
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
 function friendlyDate(dateStr) {
   const d = new Date(dateStr + 'T12:00:00');
@@ -78,7 +78,7 @@ function QArc({ value }) {
       </Svg>
       <View>
         <Text style={{ fontSize: 20, fontWeight: '700', color: col, lineHeight: 24 }}>{value}%</Text>
-        <Text style={{ fontSize: 10, color: T.muted, letterSpacing: 1 }}>KVALITET</Text>
+        <Text style={{ fontSize: 10, color: T.muted, letterSpacing: 1 }}>QUALITY</Text>
       </View>
     </View>
   );
@@ -140,11 +140,11 @@ function TimeBar({ sleepStart, sleepEnd, winStart, winEnd }) {
 
 function SleepHygieneTip({ hour }) {
   const tips = [
-    { hours:[20,21,22], icon:'💡', title:'Dim lysene',       text:'Reduser lys nå for å la melatonin stige naturlig. Unngå sterkt tak-lys.' },
-    { hours:[21,22,23], icon:'📱', title:'Legg bort skjermen', text:'Blålys forsinker DLMO med opptil 1.5 timer. Bytt til nattmodus.' },
-    { hours:[6,7,8],    icon:'☀️', title:'Søk dagslys',      text:'Morgenlys hjelper å sette circadian-klokken for neste natt.' },
-    { hours:[14,15],    icon:'☕', title:'Siste kaffe nå',   text:'Koffein har 5-6t halveringstid. Etter kl 15 påvirker det nattesøvnen.' },
-    { hours:[13,14,15], icon:'😴', title:'Power-nap-vindu',  text:'Ettermiddagsdipet er et naturlig mini-søvnvindu. 20 minutter er ideelt.' },
+    { hours:[20,21,22], icon:'💡', title:'Dim the lights',      text:'Reduce light now to let melatonin rise naturally. Avoid bright ceiling lights.' },
+    { hours:[21,22,23], icon:'📱', title:'Put away your screen', text:'Blue light delays DLMO by up to 1.5 hours. Switch to night mode.' },
+    { hours:[6,7,8],    icon:'☀️', title:'Get morning light',   text:'Morning light helps set the circadian clock for the next night.' },
+    { hours:[14,15],    icon:'☕', title:'Last coffee now',      text:'Caffeine has a 5-6h half-life. After 3 PM it affects your sleep.' },
+    { hours:[13,14,15], icon:'😴', title:'Power nap window',    text:'The afternoon dip is a natural mini sleep window. 20 minutes is ideal.' },
   ];
   const tip = tips.find(t => t.hours.includes(hour));
   if (!tip) return null;
@@ -198,7 +198,7 @@ export default function HomeScreen() {
   }, []);
 
   const nowHour = clock.getHours();
-  const greeting = nowHour < 5 ? 'God natt' : nowHour < 12 ? 'God morgen' : nowHour < 18 ? 'God dag' : 'God kveld';
+  const greeting = nowHour < 5 ? 'Good night' : nowHour < 12 ? 'Good morning' : nowHour < 18 ? 'Good day' : 'Good evening';
   const timeStr = `${String(clock.getHours()).padStart(2,'0')}:${String(clock.getMinutes()).padStart(2,'0')}`;
 
   const nextSleep    = results.find(r => !r.skip && r.sleepStart > now);
@@ -233,14 +233,14 @@ export default function HomeScreen() {
           <Card accentColor={T.accent} style={{ marginBottom: 16 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
               <View style={{ flex: 1 }}>
-                <Pill color={T.accent}>Sover nå</Pill>
+                <Pill color={T.accent}>Sleeping Now</Pill>
                 <Text style={[styles.bigTime, { marginTop: 8 }]}>
                   {minToTime(currentSleep.sleepStart)}
                   <Text style={{ color: T.muted, fontWeight: '300' }}> → </Text>
                   {minToTime(currentSleep.sleepEnd)}
                 </Text>
                 <Text style={styles.cardSub}>
-                  Sover til {minToTime(currentSleep.sleepEnd)} · {currentSleep.cycles} sykluser
+                  Sleeping until {minToTime(currentSleep.sleepEnd)} · {currentSleep.cycles} cycles
                 </Text>
               </View>
               <Text style={{ fontSize: 36 }}>😴</Text>
@@ -258,22 +258,22 @@ export default function HomeScreen() {
           <Card style={{ marginBottom: 16, backgroundColor: T.elevated }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.mono10}>NESTE SØVN</Text>
+                <Text style={styles.mono10}>NEXT SLEEP</Text>
                 <Text style={[styles.bigTime, { marginTop: 6 }]}>{minToTime(nextSleep.sleepStart)}</Text>
                 <Text style={styles.cardSub}>
                   {friendlyDate(minToDate(nextSleep.sleepStart))} · {formatDur(nextSleep.duration)}
                 </Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
-                <Text style={styles.mono10}>OM</Text>
+                <Text style={styles.mono10}>IN</Text>
                 <Text style={{ fontSize: 28, fontWeight: '700', color: T.accent, lineHeight: 34, marginTop: 4 }}>
                   {hoursToSleep}t{minsRem ? ` ${minsRem}m` : ''}
                 </Text>
               </View>
             </View>
             <View style={{ flexDirection: 'row', gap: 10 }}>
-              <StatBox label="SYKLUSER" value={`${nextSleep.cycles}×90m`} />
-              <StatBox label="KVALITET"  value={`${nextSleep.quality}%`}  color={nextSleep.quality >= 75 ? T.accent : T.gold} />
+              <StatBox label="CYCLES"    value={`${nextSleep.cycles}×90m`} />
+              <StatBox label="QUALITY"   value={`${nextSleep.quality}%`}  color={nextSleep.quality >= 75 ? T.accent : T.gold} />
               <StatBox label="MELATONIN" value={`${nextSleep.melOnset}%`} color={nextSleep.melOnset > 60 ? T.accent : T.gold} />
             </View>
           </Card>
@@ -281,12 +281,12 @@ export default function HomeScreen() {
         ) : (
           <Card style={{ marginBottom: 16, alignItems: 'center', paddingVertical: 32 }}>
             <Text style={{ fontSize: 36, marginBottom: 12 }}>🌙</Text>
-            <Text style={{ fontSize: 16, fontWeight: '600', color: T.text, marginBottom: 8 }}>Ingen plan ennå</Text>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: T.text, marginBottom: 8 }}>No plan yet</Text>
             <Text style={{ fontSize: 13, color: T.sub, textAlign: 'center', marginBottom: 20, lineHeight: 20 }}>
-              Legg inn sovevinduer for å få din personlige søvnplan
+              Add sleep windows to get your personal sleep schedule
             </Text>
             <TouchableOpacity onPress={() => router.push('/(tabs)/plan')} style={styles.primaryBtn}>
-              <Text style={styles.primaryBtnText}>Lag søvnplan</Text>
+              <Text style={styles.primaryBtnText}>Create sleep schedule</Text>
             </TouchableOpacity>
           </Card>
         )}
@@ -294,29 +294,29 @@ export default function HomeScreen() {
         {/* ── Melatonin + Restitusjon ── */}
         <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
           <Card style={{ flex: 1, margin: 0 }}>
-            <Text style={[styles.mono10, { marginBottom: 8 }]}>MELATONIN NÅ</Text>
+            <Text style={[styles.mono10, { marginBottom: 8 }]}>MELATONIN NOW</Text>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <View>
                 <Text style={{ fontSize: 24, fontWeight: '700', color: T.accent }}>{melNow}%</Text>
-                <Text style={{ fontSize: 11, color: T.sub }}>{melNow > 60 ? 'Stiger' : 'Lavt'}</Text>
+                <Text style={{ fontSize: 11, color: T.sub }}>{melNow > 60 ? 'Rising' : 'Low'}</Text>
               </View>
               <MelRing shift={calib.dlmoShift} amp={calib.amplitude} size={56} />
             </View>
           </Card>
 
           <Card style={{ flex: 1, margin: 0 }}>
-            <Text style={[styles.mono10, { marginBottom: 8 }]}>RESTITUSJON</Text>
+            <Text style={[styles.mono10, { marginBottom: 8 }]}>RECOVERY</Text>
             {restScore !== null ? (
               <View>
                 <Text style={{ fontSize: 24, fontWeight: '700', color: restScore >= 70 ? T.accent : restScore >= 40 ? T.gold : T.red }}>
                   {restScore}%
                 </Text>
                 <Text style={{ fontSize: 11, color: T.sub }}>
-                  {restScore >= 70 ? 'Godt hvilt' : restScore >= 40 ? 'Moderat' : hoursAwakeNow !== null ? `${Math.round(hoursAwakeNow)}t siden søvn` : ''}
+                  {restScore >= 70 ? 'Well rested' : restScore >= 40 ? 'Moderate' : hoursAwakeNow !== null ? `${Math.round(hoursAwakeNow)}h since sleep` : ''}
                 </Text>
               </View>
             ) : (
-              <Text style={{ fontSize: 13, color: T.muted }}>Logg søvn for score</Text>
+              <Text style={{ fontSize: 13, color: T.muted }}>Log sleep for score</Text>
             )}
           </Card>
         </View>
@@ -324,7 +324,7 @@ export default function HomeScreen() {
         {/* ── Kommende søvn ── */}
         {upcoming.length > 0 && (
           <Card style={{ marginBottom: 12 }}>
-            <Text style={[styles.cardSub, { marginBottom: 12, fontWeight: '600' }]}>Kommende søvn</Text>
+            <Text style={[styles.cardSub, { marginBottom: 12, fontWeight: '600' }]}>Upcoming Sleep</Text>
             {upcoming.map((r, i) => (
               <View key={i} style={[
                 { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -351,7 +351,7 @@ export default function HomeScreen() {
         <TouchableOpacity
           onPress={() => router.push('/(tabs)/analyse')}
           style={styles.ghostBtn}>
-          <Text style={styles.ghostBtnText}>+ Logg søvnøkt raskt</Text>
+          <Text style={styles.ghostBtnText}>+ Log sleep session quickly</Text>
         </TouchableOpacity>
 
         <View style={{ height: 24 }} />

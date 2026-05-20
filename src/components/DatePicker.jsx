@@ -6,8 +6,8 @@ const T = {
   accent: '#5EE7B7', text: '#E2EAF4', sub: '#7A96B8', muted: '#3A4F6A',
 };
 
-const DAYS = ['søn','man','tir','ons','tor','fre','lør'];
-const MONTHS = ['jan','feb','mar','apr','mai','jun','jul','aug','sep','okt','nov','des'];
+const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 function parseDate(dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number);
