@@ -2,12 +2,14 @@
 // SLEEP HYGIENE COACHING SCREEN
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import * as Notifications from 'expo-notifications';
 import { calibrateFromLog, localDate } from '../../src/engine/sleepEngine';
 import { Storage } from '../../src/utils/storage';
+import { earnedBadges } from '../../src/utils/badges';
 
 const T = {
   bg: '#060914', surface: '#0C1220', elevated: '#111A2E',
@@ -186,6 +188,21 @@ const ALL_TIPS = [
     why:'Gratitude practice reduces amygdala reactivity and increases prefrontal activation — shifting the brain from vigilance mode to the restful state compatible with quality sleep.' },
 ];
 
+const WEEKLY_CHALLENGES = [
+  { icon:'📴', title:'Digital Sunset',     desc:'No screens 1 hour before bed every night this week',     days:7 },
+  { icon:'☀️', title:'Morning Light',       desc:'10 min of morning sunlight within 30 min of waking',     days:7 },
+  { icon:'🌡️', title:'Cool Your Room',      desc:'Set bedroom to 18–20 °C before sleep every night',       days:7 },
+  { icon:'🧘', title:'Wind-Down Ritual',    desc:'10 min of stretching or meditation before bed each night', days:7 },
+  { icon:'☕', title:'Caffeine Curfew',      desc:'No caffeine after 2 PM — track it every day this week',   days:7 },
+  { icon:'⏰', title:'Consistent Bedtime',  desc:'Go to bed within 30 min of your target time each night',  days:7 },
+  { icon:'🏃', title:'Daily Movement',      desc:'At least 20 min of exercise or walking every day',        days:7 },
+];
+
+function getCurrentChallenge() {
+  const weekNum = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
+  return WEEKLY_CHALLENGES[weekNum % WEEKLY_CHALLENGES.length];
+}
+
 function getTodaysTips(hour, lastQuality) {
   const scored = ALL_TIPS.map(tip => {
     const h = Math.floor(hour);
@@ -244,39 +261,96 @@ function TipCard({ tip, isDone, onToggleDone }) {
 }
 
 export default function CoachingScreen() {
-  const [todaysTips, setTodaysTips] = useState([]);
-  const [allTips,    setAllTips]    = useState(false);
-  const [selCat,     setSelCat]     = useState(null);
-  const [done,       setDone]       = useState([]);
-  const [streak,     setStreak]     = useState(0);
+  const [todaysTips,  setTodaysTips]  = useState([]);
+  const [allTips,     setAllTips]     = useState(false);
+  const [selCat,      setSelCat]      = useState(null);
+  const [done,        setDone]        = useState([]);
+  const [streak,      setStreak]      = useState(0);
+  const [badges,      setBadges]      = useState([]);
+  const [challenge,   setChallenge]   = useState(null);
+  const [chalDays,    setChalDays]    = useState(0);
+  const [refreshing,  setRefreshing]  = useState(false);
 
-  useFocusEffect(useCallback(() => {
-    (async () => {
-      const log   = await Storage.getLog();
-      const lastQ = log.length ? (log[log.length - 1].quality ?? 70) : 70;
-      const hour  = new Date().getHours() + new Date().getMinutes() / 60;
-      setTodaysTips(getTodaysTips(hour, lastQ));
+  const loadData = useCallback(async () => {
+    const [log, napLog] = await Promise.all([Storage.getLog(), Storage.getNapLog()]);
+    const lastQ  = log.length ? (log[log.length - 1].quality ?? 70) : 70;
+    const hour   = new Date().getHours() + new Date().getMinutes() / 60;
+    setTodaysTips(getTodaysTips(hour, lastQ));
 
-      const state     = await Storage.getCoachingState();
-      const today     = localDate(0);
-      const yesterday = localDate(-1);
-      if (state.lastDate === today) {
-        setStreak(state.streak);
-        setDone(state.done || []);
-      } else {
-        const newStreak = state.lastDate === yesterday ? state.streak + 1 : 1;
-        await Storage.saveCoachingState({ streak: newStreak, lastDate: today, done: [] });
-        setStreak(newStreak);
-        setDone([]);
-      }
-    })();
-  }, []));
+    const state     = await Storage.getCoachingState();
+    const today     = localDate(0);
+    const yesterday = localDate(-1);
+    let currentStreak, currentDone;
+    if (state.lastDate === today) {
+      currentStreak = state.streak;
+      currentDone   = state.done || [];
+    } else {
+      currentStreak = state.lastDate === yesterday ? state.streak + 1 : 1;
+      currentDone   = [];
+      await Storage.saveCoachingState({ ...state, streak: currentStreak, lastDate: today, done: [] });
+    }
+    setStreak(currentStreak);
+    setDone(currentDone);
+    setBadges(earnedBadges(log, currentStreak, napLog));
+
+    // Weekly challenge
+    const chal = getCurrentChallenge();
+    setChallenge(chal);
+    setChalDays(state.challengeDays ?? 0);
+
+    // Schedule daily notification (once per day)
+    const lastNotifDate = await Storage.getCoachingNotifDate();
+    if (lastNotifDate !== today) {
+      try {
+        await Notifications.requestPermissionsAsync();
+        const tipForNotif = getTodaysTips(21, lastQ)[0];
+        if (tipForNotif) {
+          const fireDate = new Date();
+          fireDate.setHours(20, 30, 0, 0);
+          if (fireDate < new Date()) fireDate.setDate(fireDate.getDate() + 1);
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: `💡 ${tipForNotif.title}`,
+              body: tipForNotif.text,
+              sound: false,
+            },
+            trigger: { date: fireDate },
+          });
+          await Storage.saveCoachingNotifDate(today);
+        }
+      } catch {}
+    }
+  }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  }, [loadData]);
+
+  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
   const toggleDone = async (id) => {
     const next = done.includes(id) ? done.filter(d => d !== id) : [...done, id];
     setDone(next);
     const state = await Storage.getCoachingState();
     await Storage.saveCoachingState({ ...state, done: next });
+  };
+
+  const toggleChallengeDay = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const state = await Storage.getCoachingState();
+    const today = localDate(0);
+    const chalDaysArr = state.challengeDaysArr || [];
+    let nextArr;
+    if (chalDaysArr.includes(today)) {
+      nextArr = chalDaysArr.filter(d => d !== today);
+    } else {
+      nextArr = [...chalDaysArr, today];
+    }
+    const newCount = nextArr.length;
+    setChalDays(newCount);
+    await Storage.saveCoachingState({ ...state, challengeDays: newCount, challengeDaysArr: nextArr });
   };
 
   const shown = allTips
@@ -287,7 +361,11 @@ export default function CoachingScreen() {
 
   return (
     <SafeAreaView style={ts.safe}>
-      <ScrollView contentContainerStyle={ts.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={ts.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={T.accent} />}
+      >
         {/* Header */}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 20, marginBottom: 20 }}>
           <View>
@@ -360,6 +438,52 @@ export default function CoachingScreen() {
                 🎉 All tips completed for today!
               </Text>
             )}
+          </View>
+        )}
+
+        {/* Weekly challenge */}
+        {!allTips && challenge && (
+          <View style={[ts.card, { marginBottom: 16, borderColor: `${T.blue}40` }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <Text style={ts.mono10}>THIS WEEK'S CHALLENGE</Text>
+              <Text style={{ fontSize: 10, color: T.blue }}>{chalDays}/7 days</Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
+              <Text style={{ fontSize: 28 }}>{challenge.icon}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: T.text, marginBottom: 4 }}>{challenge.title}</Text>
+                <Text style={{ fontSize: 12, color: T.sub, lineHeight: 20 }}>{challenge.desc}</Text>
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 4, marginBottom: 12 }}>
+              {Array.from({ length: 7 }, (_, i) => (
+                <View key={i} style={{ flex: 1, height: 6, borderRadius: 3, backgroundColor: i < chalDays ? T.blue : T.elevated }} />
+              ))}
+            </View>
+            <TouchableOpacity
+              onPress={toggleChallengeDay}
+              style={{ paddingVertical: 10, borderRadius: 12, backgroundColor: `${T.blue}18`, borderWidth: 1, borderColor: `${T.blue}40`, alignItems: 'center' }}>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: T.blue }}>
+                {chalDays >= 7 ? '✓ Challenge complete!' : '+ Mark today complete'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Badges */}
+        {badges.length > 0 && !allTips && (
+          <View style={[ts.card, { marginBottom: 16 }]}>
+            <Text style={[ts.mono10, { marginBottom: 12 }]}>EARNED BADGES</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {badges.map(b => (
+                <View key={b.id} style={{ alignItems: 'center', gap: 4, minWidth: 64 }}>
+                  <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: T.elevated, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: `${T.accent}30` }}>
+                    <Text style={{ fontSize: 24 }}>{b.icon}</Text>
+                  </View>
+                  <Text style={{ fontSize: 10, color: T.sub, textAlign: 'center' }}>{b.title}</Text>
+                </View>
+              ))}
+            </View>
           </View>
         )}
 

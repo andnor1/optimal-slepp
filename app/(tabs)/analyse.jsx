@@ -4,7 +4,7 @@
 import { useState, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Modal,
-  StyleSheet, Alert, Share,
+  StyleSheet, Alert, Share, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
@@ -17,6 +17,7 @@ import DatePicker  from '../../src/components/DatePicker';
 import {
   toMin, minToTime, minToDate, formatDur,
   melatoninLevel, calibrateFromLog, localDate,
+  weeklyScore, sleepInsights,
 } from '../../src/engine/sleepEngine';
 import { Storage } from '../../src/utils/storage';
 
@@ -268,6 +269,7 @@ export default function AnalyseScreen() {
   const [calib,        setCalib]        = useState({ dlmoShift:0, amplitude:1.0, dataPoints:0 });
   const [lastAnalysis, setLastAnalysis] = useState(null);
   const [showLog,      setShowLog]      = useState(false);
+  const [refreshing,   setRefreshing]   = useState(false);
   const exportRef = useRef();
 
   const loadData = useCallback(async () => {
@@ -279,6 +281,12 @@ export default function AnalyseScreen() {
     setCalib(calibrateFromLog(storedLog));
     setLastAnalysis(analysis);
   }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  }, [loadData]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
@@ -347,6 +355,9 @@ export default function AnalyseScreen() {
     trend = (n*sumXY - sumX*sumY) / (n*sumX2 - sumX*sumX);
   }
 
+  const weekScore = weeklyScore(thisWeek);
+  const insights  = sleepInsights(log);
+
   if (log.length === 0 && !lastAnalysis) return (
     <SafeAreaView style={s.safe}>
       <View style={s.scroll}>
@@ -376,7 +387,11 @@ export default function AnalyseScreen() {
 
   return (
     <SafeAreaView style={s.safe}>
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={s.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={T.accent} />}
+      >
 
         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingTop:20, marginBottom:16 }}>
           <Text style={s.title}>Analysis</Text>
@@ -439,6 +454,59 @@ export default function AnalyseScreen() {
               )}
             </View>
           </ViewShot>
+        )}
+
+        {/* ── Weekly score ── */}
+        {weekScore && (
+          <View style={[s.card, { marginBottom:16 }]}>
+            <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+              <Text style={s.mono10}>WEEKLY SLEEP SCORE</Text>
+              <View style={{ backgroundColor: weekScore.grade==='A'?`${T.accent}20`:weekScore.grade==='B'?`${T.blue}20`:weekScore.grade==='F'?`${T.red}20`:`${T.gold}20`, borderRadius:8, paddingHorizontal:10, paddingVertical:4 }}>
+                <Text style={{ fontSize:18, fontWeight:'800', color: weekScore.grade==='A'?T.accent:weekScore.grade==='B'?T.blue:weekScore.grade==='F'?T.red:T.gold }}>
+                  {weekScore.grade}
+                </Text>
+              </View>
+            </View>
+            <View style={{ flexDirection:'row', alignItems:'center', gap:14, marginBottom:12 }}>
+              <View style={{ position:'relative', width:72, height:72, alignItems:'center', justifyContent:'center' }}>
+                <View style={{ position:'absolute', width:72, height:72, borderRadius:36, borderWidth:6, borderColor:T.elevated }} />
+                <View style={{ position:'absolute', width:72, height:72, borderRadius:36, borderWidth:6, borderColor:'transparent',
+                  borderTopColor: weekScore.score>=70?T.accent:weekScore.score>=45?T.gold:T.red,
+                  transform:[{rotate:`${(weekScore.score/100)*360-90}deg`}] }} />
+                <Text style={{ fontSize:20, fontWeight:'800', color:T.text }}>{weekScore.score}</Text>
+              </View>
+              <View style={{ flex:1, gap:6 }}>
+                {[
+                  ['Duration',    weekScore.durScore,  40],
+                  ['Consistency', weekScore.consScore, 30],
+                  ['Coverage',    weekScore.covScore,  30],
+                ].map(([label, val, max]) => (
+                  <View key={label}>
+                    <View style={{ flexDirection:'row', justifyContent:'space-between', marginBottom:2 }}>
+                      <Text style={{ fontSize:10, color:T.muted }}>{label}</Text>
+                      <Text style={{ fontSize:10, color:T.sub }}>{val}/{max}</Text>
+                    </View>
+                    <View style={{ height:4, backgroundColor:T.elevated, borderRadius:2, overflow:'hidden' }}>
+                      <View style={{ height:'100%', width:`${(val/max)*100}%`, backgroundColor:T.accent, borderRadius:2 }} />
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* ── Insights ── */}
+        {insights.length > 0 && (
+          <View style={[s.card, { marginBottom:16, borderLeftWidth:3, borderLeftColor:T.blue }]}>
+            <Text style={[s.mono10, { marginBottom:12 }]}>PERSONAL INSIGHTS</Text>
+            {insights.map((insight, i) => (
+              <View key={i} style={[{ flexDirection:'row', gap:10, alignItems:'flex-start' }, i > 0 && { marginTop:10, paddingTop:10, borderTopWidth:1, borderTopColor:T.border }]}>
+                <Text style={{ fontSize:16 }}>💡</Text>
+                <Text style={{ fontSize:13, color:T.sub, flex:1, lineHeight:20 }}>{insight}</Text>
+              </View>
+            ))}
+          </View>
         )}
 
         {/* ── Siste innspilte natt ── */}

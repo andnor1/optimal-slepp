@@ -4,13 +4,14 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, TextInput,
-  Switch, StyleSheet, Alert,
+  Switch, StyleSheet, Alert, RefreshControl,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { calibrateFromLog } from '../../src/engine/sleepEngine';
 import { Storage } from '../../src/utils/storage';
+import { earnedBadges } from '../../src/utils/badges';
 
 // Decimal hour (e.g. 2.75) → "02:45"
 function peakStr(h) {
@@ -61,21 +62,32 @@ export default function ProfilScreen() {
   const [calib,        setCalib]        = useState({ dlmoShift:0, amplitude:1.0, dataPoints:0 });
   const [log,          setLog]          = useState([]);
   const [alarmEnabled, setAlarmEnabled] = useState(false);
+  const [badges,       setBadges]       = useState([]);
+  const [refreshing,   setRefreshing]   = useState(false);
 
-  useFocusEffect(useCallback(() => {
-    (async () => {
-      const [storedLog, n, ae] = await Promise.all([
-        Storage.getLog(),
-        Storage.getUsername(),
-        Storage.getAlarmEnabled(),
-      ]);
-      setLog(storedLog);
-      setCalib(calibrateFromLog(storedLog));
-      setName(n);
-      setTmpName(n);
-      setAlarmEnabled(ae);
-    })();
-  }, []));
+  const loadData = useCallback(async () => {
+    const [storedLog, n, ae, coachState, napLog] = await Promise.all([
+      Storage.getLog(),
+      Storage.getUsername(),
+      Storage.getAlarmEnabled(),
+      Storage.getCoachingState(),
+      Storage.getNapLog(),
+    ]);
+    setLog(storedLog);
+    setCalib(calibrateFromLog(storedLog));
+    setName(n);
+    setTmpName(n);
+    setAlarmEnabled(ae);
+    setBadges(earnedBadges(storedLog, coachState?.streak ?? 0, napLog));
+  }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  }, [loadData]);
+
+  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
   const saveEditing = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -111,7 +123,11 @@ export default function ProfilScreen() {
 
   return (
     <SafeAreaView style={s.safe}>
-      <ScrollView contentContainerStyle={s.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={s.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={T.accent} />}
+      >
         <Text style={s.title}>Profile & Settings</Text>
 
         {/* ── Profilkort ── */}
@@ -153,7 +169,7 @@ export default function ProfilScreen() {
           <View style={{ flexDirection:'row', gap:10 }}>
             {[
               ['LOGGED',    `${calib.dataPoints} nights`, T.text],
-              ['DLMO',      `${calib.dlmoShift >= 0 ? '+' : ''}${Math.round(calib.dlmoShift * 10) / 10}t`, T.accent],
+              ['DLMO',      `${calib.dlmoShift >= 0 ? '+' : ''}${Math.round(calib.dlmoShift * 10) / 10}h`, T.accent],
               ['AMPLITUDE', `${Math.round(calib.amplitude * 100)}%`, calib.amplitude > 0.8 ? T.accent : T.gold],
             ].map(([l, v, c]) => (
               <View key={l} style={s.statBox}>
@@ -238,6 +254,27 @@ export default function ProfilScreen() {
                 <Text style={{ fontSize:13, color:T.sub, flex:1 }}>{desc}</Text>
               </View>
             ))}
+          </Card>
+        )}
+
+        {/* ── Badges ── */}
+        {badges.length > 0 && (
+          <Card style={{ marginBottom:16 }}>
+            <Text style={[s.mono10, { marginBottom:12 }]}>ACHIEVEMENTS</Text>
+            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:10 }}>
+              {badges.map(b => (
+                <View key={b.id} style={{ alignItems:'center', gap:4, minWidth:68 }}>
+                  <View style={{
+                    width:52, height:52, borderRadius:16,
+                    backgroundColor:T.elevated, alignItems:'center', justifyContent:'center',
+                    borderWidth:1, borderColor:`${T.accent}30`,
+                  }}>
+                    <Text style={{ fontSize:26 }}>{b.icon}</Text>
+                  </View>
+                  <Text style={{ fontSize:10, color:T.sub, textAlign:'center', maxWidth:68 }}>{b.title}</Text>
+                </View>
+              ))}
+            </View>
           </Card>
         )}
 

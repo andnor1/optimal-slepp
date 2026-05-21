@@ -371,3 +371,88 @@ export function sleepDepthFromRMS(history) {
   const variance=recent.reduce((acc,v)=>acc+(v-avg)**2,0)/recent.length;
   return Math.min(1,avg*80+Math.sqrt(variance)*120);
 }
+
+// ── Weekly sleep score (0–100) ────────────────────────────────────────────────
+// weekEntries – log entries from the current ISO week.
+// Returns { score, grade, durScore, consScore, covScore } or null if no data.
+export function weeklyScore(weekEntries) {
+  if(!weekEntries||!weekEntries.length) return null;
+  const nights = weekEntries.filter(e=>!e.isNap);
+  if(!nights.length) return null;
+
+  // Duration subscore 0–40: avg duration vs 7.5h target
+  const avgDur = nights.reduce((a,e)=>a+(e.sleepEnd-e.sleepStart),0)/nights.length;
+  const durScore = Math.min(40,Math.round((avgDur/450)*40));
+
+  // Consistency subscore 0–30: stddev of sleep-start hour
+  const startHours = nights.map(e=>((e.sleepStart%1440)+1440)%1440/60);
+  const avgStart   = startHours.reduce((a,b)=>a+b,0)/startHours.length;
+  const stdDev     = Math.sqrt(startHours.reduce((a,h)=>a+(h-avgStart)**2,0)/startHours.length);
+  const consScore  = Math.max(0,Math.round(30-stdDev*8));
+
+  // Coverage subscore 0–30: logged nights out of 7
+  const covScore = Math.round((Math.min(7,nights.length)/7)*30);
+
+  const score = durScore+consScore+covScore;
+  const grade = score>=85?'A':score>=70?'B':score>=55?'C':score>=40?'D':'F';
+  return {score,grade,durScore,consScore,covScore};
+}
+
+// ── Personalised sleep insights ────────────────────────────────────────────────
+// Returns an array of up to 3 insight strings derived from the log.
+const DAY_NAMES=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+export function sleepInsights(log) {
+  const insights=[];
+  const nights=log.filter(e=>!e.isNap);
+  if(nights.length<5) return insights;
+
+  // Best day of week
+  const byDay=Array(7).fill(null).map(()=>[]);
+  for(const e of nights){
+    const d=new Date(minToDate(e.sleepStart)+'T12:00:00');
+    byDay[d.getDay()].push(e.sleepEnd-e.sleepStart);
+  }
+  const dayAvgs=byDay.map(arr=>arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:0);
+  const validDays=dayAvgs.filter(v=>v>0);
+  if(validDays.length>=2){
+    const maxDay=dayAvgs.indexOf(Math.max(...dayAvgs));
+    if(dayAvgs[maxDay]>0)
+      insights.push(`You sleep longest on ${DAY_NAMES[maxDay]}s (avg ${formatDur(Math.round(dayAvgs[maxDay]))})`);
+  }
+
+  // Workday vs weekend
+  const wdDur=[],weDur=[];
+  for(const e of nights){
+    const day=new Date(minToDate(e.sleepStart)+'T12:00:00').getDay();
+    const dur=e.sleepEnd-e.sleepStart;
+    if(day===0||day===6) weDur.push(dur); else wdDur.push(dur);
+  }
+  if(wdDur.length>=2&&weDur.length>=2){
+    const wdAvg=wdDur.reduce((a,b)=>a+b,0)/wdDur.length;
+    const weAvg=weDur.reduce((a,b)=>a+b,0)/weDur.length;
+    const diff=Math.round(weAvg-wdAvg);
+    if(diff>=20)
+      insights.push(`You sleep ${formatDur(diff)} more on weekends than workdays`);
+    else if(diff<=-20)
+      insights.push(`You sleep ${formatDur(-diff)} less on workdays than weekends`);
+  }
+
+  // 14-day trend: compare first 7 vs last 7
+  if(nights.length>=10){
+    const recent14=nights.slice(-14);
+    const older=recent14.slice(0,Math.floor(recent14.length/2));
+    const newer=recent14.slice(Math.floor(recent14.length/2));
+    const oldAvg=older.reduce((a,e)=>a+(e.sleepEnd-e.sleepStart),0)/older.length;
+    const newAvg=newer.reduce((a,e)=>a+(e.sleepEnd-e.sleepStart),0)/newer.length;
+    const diff=Math.round(newAvg-oldAvg);
+    if(diff>=20)
+      insights.push(`Improving – ${formatDur(diff)} more per night than 2 weeks ago`);
+    else if(diff<=-20)
+      insights.push(`Declining – ${formatDur(-diff)} less per night than 2 weeks ago`);
+    else
+      insights.push('Stable sleep duration over the past 2 weeks');
+  }
+
+  return insights.slice(0,3);
+}

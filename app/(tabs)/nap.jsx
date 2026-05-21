@@ -29,12 +29,29 @@ const DURATIONS = [
   { label: '90 min', min: 90, emoji: '🌙', desc: 'Full cycle', detail: 'One complete sleep cycle with REM. Best for deep recovery.' },
 ];
 
+const FEELINGS = [
+  { emoji:'😞', label:'Groggy',    score:1 },
+  { emoji:'😐', label:'Neutral',   score:2 },
+  { emoji:'🙂', label:'OK',        score:3 },
+  { emoji:'😊', label:'Refreshed', score:4 },
+  { emoji:'🤩', label:'Amazing',   score:5 },
+];
+
+const FEEL_IMPACT = [
+  'Try a shorter nap or earlier timing',
+  'Normal for some – give it 5 minutes',
+  'Good recovery!',
+  'Optimal nap timing!',
+  'Perfect power nap! You\'re in the zone',
+];
+
 export default function NapScreen() {
-  const [selIdx,  setSelIdx]  = useState(1);
-  const [phase,   setPhase]   = useState('idle'); // 'idle' | 'running' | 'done'
-  const [elapsed, setElapsed] = useState(0);
-  const [calib,   setCalib]   = useState({ dlmoShift: 0, amplitude: 1.0 });
-  const [notifId, setNotifId] = useState(null);
+  const [selIdx,    setSelIdx]    = useState(1);
+  const [phase,     setPhase]     = useState('idle'); // 'idle' | 'running' | 'done' | 'rating'
+  const [elapsed,   setElapsed]   = useState(0);
+  const [calib,     setCalib]     = useState({ dlmoShift: 0, amplitude: 1.0 });
+  const [notifId,   setNotifId]   = useState(null);
+  const [feelIdx,   setFeelIdx]   = useState(null);
 
   const napStartRef = useRef(null);
   const timerRef    = useRef(null);
@@ -83,9 +100,7 @@ export default function NapScreen() {
     }, 1000);
   };
 
-  const finishNap = async () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setPhase('done');
+  const saveNapEntry = async (quality = null) => {
     try {
       const start = new Date(napStartRef.current);
       const dateStr = `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,'0')}-${String(start.getDate()).padStart(2,'0')}`;
@@ -94,8 +109,22 @@ export default function NapScreen() {
       const log = await Storage.getLog();
       await Storage.saveLog([...log, {
         id: Date.now(), sleepStart, sleepEnd: sleepStart + dur.min, loggedAt: Date.now(), isNap: true,
+        ...(quality !== null ? { quality } : {}),
       }]);
     } catch {}
+  };
+
+  const finishNap = async () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setPhase('rating');
+  };
+
+  const submitFeeling = async (idx) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setFeelIdx(idx);
+    const quality = Math.round(((idx + 1) / 5) * 100);
+    await saveNapEntry(quality);
+    setPhase('done');
   };
 
   const stopNap = async () => {
@@ -109,7 +138,7 @@ export default function NapScreen() {
     setElapsed(0);
   };
 
-  const resetNap = () => { setPhase('idle'); setElapsed(0); };
+  const resetNap = () => { setPhase('idle'); setElapsed(0); setFeelIdx(null); };
 
   const minStr = String(Math.floor(remaining / 60)).padStart(2, '0');
   const secStr = String(remaining % 60).padStart(2, '0');
@@ -213,12 +242,41 @@ export default function NapScreen() {
             <Text style={[s.primaryBtnText, { color: 'white' }]}>⏹ Stop Nap</Text>
           </TouchableOpacity>
         )}
+        {/* Feeling rating */}
+        {phase === 'rating' && (
+          <View style={[s.card, { marginBottom: 16 }]}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: T.text, textAlign: 'center', marginBottom: 16 }}>
+              How do you feel?
+            </Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
+              {FEELINGS.map((f, i) => (
+                <TouchableOpacity
+                  key={i}
+                  onPress={() => submitFeeling(i)}
+                  style={{ alignItems: 'center', gap: 4 }}>
+                  <Text style={{ fontSize: 36 }}>{f.emoji}</Text>
+                  <Text style={{ fontSize: 10, color: T.muted }}>{f.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
+
         {phase === 'done' && (
           <View style={{ gap: 12 }}>
             <View style={[s.card, { backgroundColor: T.accentLo, borderColor: `${T.accent}30`, alignItems: 'center', paddingVertical: 24 }]}>
               <Text style={{ fontSize: 32, marginBottom: 8 }}>🎉</Text>
               <Text style={{ fontSize: 17, fontWeight: '700', color: T.accent, marginBottom: 4 }}>Nap complete!</Text>
-              <Text style={{ fontSize: 13, color: T.sub }}>{dur.label} logged to your sleep history.</Text>
+              <Text style={{ fontSize: 13, color: T.sub, marginBottom: feelIdx !== null ? 8 : 0 }}>
+                {dur.label} logged to your sleep history.
+              </Text>
+              {feelIdx !== null && (
+                <View style={{ backgroundColor: T.elevated, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 8, marginTop: 4 }}>
+                  <Text style={{ fontSize: 12, color: T.sub, textAlign: 'center' }}>
+                    {FEELINGS[feelIdx].emoji} {FEEL_IMPACT[feelIdx]}
+                  </Text>
+                </View>
+              )}
             </View>
             <TouchableOpacity onPress={resetNap} style={s.ghostBtn}>
               <Text style={s.ghostBtnText}>Start another nap</Text>

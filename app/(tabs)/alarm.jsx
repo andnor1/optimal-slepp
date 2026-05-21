@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // ALARM SCREEN – Smart wake with full-night microphone recording
 // ─────────────────────────────────────────────────────────────────────────────
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Switch, StyleSheet, Alert } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -32,14 +32,19 @@ export default function AlarmScreen() {
   const recorder = useSleepRecorder();
   const alarm    = useSmartAlarm();
 
-  const [newTime,   setNewTime]   = useState('07:00');
-  const [smartWake, setSmartWake] = useState(true);
-  const [smartMins, setSmartMins] = useState(30);
+  const [newTime,      setNewTime]      = useState('07:00');
+  const [smartWake,    setSmartWake]    = useState(true);
+  const [smartMins,    setSmartMins]    = useState(30);
+  const [morningReport,setMorningReport]= useState(null); // { wakeTime, wasSmartWake, lastLog }
+  const snoozeTimerRef = useRef(null);
 
   // Load persisted alarms on focus
   useFocusEffect(useCallback(() => {
     Storage.getAlarms().then(saved => { if (saved.length) alarm.setAlarms(saved); });
   }, []));
+
+  // Cleanup snooze timer on unmount
+  useEffect(() => () => { if (snoozeTimerRef.current) clearTimeout(snoozeTimerRef.current); }, []);
 
   // Feed live RMS to smart alarm checker
   useEffect(() => {
@@ -55,6 +60,25 @@ export default function AlarmScreen() {
       : 1;
   }, [alarm.ringing]);
   const pulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: pulse.value }] }));
+
+  const handleStopAlarm = async () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const wasSmartWake = alarm.currentAlarm?.smartFired ?? false;
+    const now = new Date();
+    const wakeTime = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    const log = await Storage.getLog().catch(() => []);
+    const lastLog = log.length ? log[log.length - 1] : null;
+    await alarm.stopAlarm();
+    setMorningReport({ wakeTime, wasSmartWake, lastLog });
+  };
+
+  const handleSnooze = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await alarm.stopAlarm();
+    snoozeTimerRef.current = setTimeout(() => {
+      alarm.triggerAlarm({ id: Date.now(), label: 'Snooze alarm', smartFired: false });
+    }, 9 * 60 * 1000);
+  };
 
   const addAlarm = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -121,18 +145,63 @@ export default function AlarmScreen() {
         {/* ── Ringing overlay ── */}
         {alarm.ringing && (
           <Animated.View style={[pulseStyle, { marginBottom:20 }]}>
-            <TouchableOpacity
-              onPress={alarm.stopAlarm}
-              style={{ backgroundColor:T.red, borderRadius:20, padding:24, alignItems:'center' }}>
-              <Text style={{ fontSize:32 }}>⏹</Text>
-              <Text style={{ fontSize:20, fontWeight:'800', color:'white', marginTop:4 }}>Stop Alarm</Text>
-              {alarm.currentAlarm && (
-                <Text style={{ fontSize:13, color:'rgba(255,255,255,.7)', marginTop:4 }}>
-                  {alarm.currentAlarm.label}
+            <View style={{ backgroundColor:T.red, borderRadius:20, padding:24, alignItems:'center' }}>
+              <Text style={{ fontSize:32 }}>⏰</Text>
+              {alarm.currentAlarm?.smartFired && (
+                <Text style={{ fontSize:12, color:'rgba(255,255,255,.85)', marginTop:4, marginBottom:2 }}>
+                  💤 Woke you in light sleep
                 </Text>
               )}
-            </TouchableOpacity>
+              <Text style={{ fontSize:20, fontWeight:'800', color:'white', marginTop:4 }}>
+                {alarm.currentAlarm?.label || 'Time to wake up!'}
+              </Text>
+              <View style={{ flexDirection:'row', gap:12, marginTop:16 }}>
+                <TouchableOpacity
+                  onPress={handleSnooze}
+                  style={{ flex:1, paddingVertical:12, borderRadius:12, backgroundColor:'rgba(255,255,255,.2)', alignItems:'center' }}>
+                  <Text style={{ fontSize:13, fontWeight:'700', color:'white' }}>💤 Snooze 9 min</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleStopAlarm}
+                  style={{ flex:1, paddingVertical:12, borderRadius:12, backgroundColor:'rgba(0,0,0,.3)', alignItems:'center' }}>
+                  <Text style={{ fontSize:13, fontWeight:'700', color:'white' }}>⏹ Stop</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </Animated.View>
+        )}
+
+        {/* ── Morning report ── */}
+        {morningReport && !alarm.ringing && (
+          <View style={[styles.card, { marginBottom:16, borderColor:`${T.accent}40` }]}>
+            <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+              <Text style={{ fontSize:15, fontWeight:'700', color:T.text }}>☀️ Good morning!</Text>
+              <TouchableOpacity onPress={() => setMorningReport(null)} hitSlop={10}>
+                <Text style={{ fontSize:18, color:T.muted }}>×</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={{ flexDirection:'row', gap:10, marginBottom: morningReport.wasSmartWake ? 10 : 0 }}>
+              <View style={{ flex:1, backgroundColor:T.elevated, borderRadius:12, padding:12, alignItems:'center' }}>
+                <Text style={{ fontSize:9, color:T.muted, letterSpacing:1 }}>WOKE AT</Text>
+                <Text style={{ fontSize:20, fontWeight:'700', color:T.accent, marginTop:4 }}>{morningReport.wakeTime}</Text>
+              </View>
+              {morningReport.lastLog && (
+                <View style={{ flex:1, backgroundColor:T.elevated, borderRadius:12, padding:12, alignItems:'center' }}>
+                  <Text style={{ fontSize:9, color:T.muted, letterSpacing:1 }}>LAST NIGHT</Text>
+                  <Text style={{ fontSize:20, fontWeight:'700', color:morningReport.lastLog.sleepEnd - morningReport.lastLog.sleepStart >= 420 ? T.accent : T.gold, marginTop:4 }}>
+                    {formatDur(morningReport.lastLog.sleepEnd - morningReport.lastLog.sleepStart)}
+                  </Text>
+                </View>
+              )}
+            </View>
+            {morningReport.wasSmartWake && (
+              <View style={{ backgroundColor:`${T.accent}18`, borderRadius:10, padding:10 }}>
+                <Text style={{ fontSize:12, color:T.accent }}>
+                  Smart Wake detected light sleep and woke you at the optimal moment.
+                </Text>
+              </View>
+            )}
+          </View>
         )}
 
         {/* ── Legg til alarm ── */}

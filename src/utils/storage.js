@@ -14,6 +14,7 @@ const KEYS = {
   LAST_ANALYSIS:    'last_analysis',
   NAP_LOG:          'nap_log',
   COACHING_STATE:   'coaching_state',
+  COACHING_NOTIF:   'coaching_notif_date',
 };
 
 export const Storage = {
@@ -93,6 +94,14 @@ export const Storage = {
   },
   async saveCoachingState(state) {
     await AsyncStorage.setItem(KEYS.COACHING_STATE, JSON.stringify(state));
+  },
+
+  // Coaching daily notification – stores last date we scheduled
+  async getCoachingNotifDate() {
+    return (await AsyncStorage.getItem(KEYS.COACHING_NOTIF)) || null;
+  },
+  async saveCoachingNotifDate(dateStr) {
+    await AsyncStorage.setItem(KEYS.COACHING_NOTIF, dateStr);
   },
 
   // Last recorded night analysis

@@ -1,14 +1,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // HOME SCREEN
 // ─────────────────────────────────────────────────────────────────────────────
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, Dimensions,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, Dimensions, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import Svg, { Circle, Path } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
+import Animated, {
+  useSharedValue, withRepeat, withTiming, useAnimatedStyle,
+} from 'react-native-reanimated';
 import { EmptyState } from '../../src/components/EmptyState';
 import {
   toMin, nowMin, minToTime, minToDate, formatDur,
@@ -140,38 +143,65 @@ function TimeBar({ sleepStart, sleepEnd, winStart, winEnd }) {
   );
 }
 
-function SleepHygieneTip({ hour }) {
-  const tips = [
-    { hours:[20,21,22], icon:'💡', title:'Dim the lights',      text:'Reduce light now to let melatonin rise naturally. Avoid bright ceiling lights.' },
-    { hours:[21,22,23], icon:'📱', title:'Put away your screen', text:'Blue light delays DLMO by up to 1.5 hours. Switch to night mode.' },
-    { hours:[6,7,8],    icon:'☀️', title:'Get morning light',   text:'Morning light helps set the circadian clock for the next night.' },
-    { hours:[14,15],    icon:'☕', title:'Last coffee now',      text:'Caffeine has a 5-6h half-life. After 3 PM it affects your sleep.' },
-    { hours:[13,14,15], icon:'😴', title:'Power nap window',    text:'The afternoon dip is a natural mini sleep window. 20 minutes is ideal.' },
-  ];
-  const tip = tips.find(t => t.hours.includes(hour));
-  if (!tip) return null;
+const ALL_HOME_TIPS = [
+  { icon:'💡', title:'Dim the lights',      text:'Reduce light now to let melatonin rise naturally. Avoid bright ceiling lights.' },
+  { icon:'📱', title:'Put away your screen', text:'Blue light delays DLMO by up to 1.5 hours. Switch to night mode or use Night Shift.' },
+  { icon:'☀️', title:'Get morning light',   text:'Morning light sets the circadian clock. Step outside for 10 min within 1h of waking.' },
+  { icon:'☕', title:'Caffeine curfew',      text:'Caffeine has a 5–6h half-life. After 2–3 PM it will still be in your system at midnight.' },
+  { icon:'😴', title:'Power nap window',    text:'The afternoon dip (13–15h) is a natural mini sleep window. 20 minutes is optimal.' },
+  { icon:'🌡️', title:'Cool your room',      text:'A room temperature of 18–20 °C helps your core temperature drop and deepen sleep.' },
+  { icon:'🧘', title:'Wind down now',        text:'A 10-minute relaxation routine before bed reduces cortisol and speeds sleep onset.' },
+  { icon:'💧', title:'Hydrate before 8 PM', text:'Stop liquids 2h before sleep to prevent nighttime awakenings. Hydrate during the day instead.' },
+];
+
+function RotatingTip({ hour }) {
+  const [idx, setIdx] = useState(0);
+  const opacity = useSharedValue(1);
+  const tipFadeStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      opacity.value = withTiming(0, { duration: 400 }, () => {
+        opacity.value = withTiming(1, { duration: 400 });
+      });
+      setIdx(i => (i + 1) % ALL_HOME_TIPS.length);
+    }, 30000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const tip = ALL_HOME_TIPS[idx];
   return (
-    <Card style={{ backgroundColor: T.goldLo, borderColor: `${T.gold}30`, marginBottom: 12 }}>
-      <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
-        <Text style={{ fontSize: 24 }}>{tip.icon}</Text>
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 13, fontWeight: '600', color: T.gold, marginBottom: 4 }}>{tip.title}</Text>
-          <Text style={{ fontSize: 12, color: T.sub, lineHeight: 20 }}>{tip.text}</Text>
+    <Animated.View style={tipFadeStyle}>
+      <Card style={{ backgroundColor: T.goldLo, borderColor: `${T.gold}30`, marginBottom: 12 }}>
+        <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+          <Text style={{ fontSize: 24 }}>{tip.icon}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: T.gold, marginBottom: 4 }}>{tip.title}</Text>
+            <Text style={{ fontSize: 12, color: T.sub, lineHeight: 20 }}>{tip.text}</Text>
+          </View>
         </View>
-      </View>
-    </Card>
+      </Card>
+    </Animated.View>
   );
 }
 
 // ─── Main screen ─────────────────────────────────────────────────────────────
 export default function HomeScreen() {
   const router = useRouter();
-  const [now, setNow] = useState(nowMin());
-  const [clock, setClock] = useState(new Date());
-  const [results, setResults] = useState([]);
-  const [log, setLog] = useState([]);
-  const [calib, setCalib] = useState({ dlmoShift: 0, amplitude: 1.0 });
-  const [username, setUsername] = useState('');
+  const [now,       setNow]       = useState(nowMin());
+  const [clock,     setClock]     = useState(new Date());
+  const [results,   setResults]   = useState([]);
+  const [log,       setLog]       = useState([]);
+  const [calib,     setCalib]     = useState({ dlmoShift: 0, amplitude: 1.0 });
+  const [username,  setUsername]  = useState('');
+  const [refreshing,setRefreshing]= useState(false);
+
+  // Melatonin ring pulse
+  const melPulse = useSharedValue(1);
+  useEffect(() => {
+    melPulse.value = withRepeat(withTiming(1.08, { duration: 2200 }), -1, true);
+  }, []);
+  const melPulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: melPulse.value }] }));
 
   const loadData = useCallback(async () => {
     try {
@@ -195,6 +225,12 @@ export default function HomeScreen() {
       // Storage errors are non-fatal; UI shows empty state
     }
   }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  }, [loadData]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
@@ -224,7 +260,11 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={T.accent} />}
+      >
 
         {/* ── Header ── */}
         <View style={styles.header}>
@@ -305,7 +345,9 @@ export default function HomeScreen() {
                 <Text style={{ fontSize: 24, fontWeight: '700', color: T.accent }}>{melNow}%</Text>
                 <Text style={{ fontSize: 11, color: T.sub }}>{melNow > 60 ? 'Rising' : 'Low'}</Text>
               </View>
-              <MelRing shift={calib.dlmoShift} amp={calib.amplitude} size={56} />
+              <Animated.View style={melPulseStyle}>
+                <MelRing shift={calib.dlmoShift} amp={calib.amplitude} size={56} />
+              </Animated.View>
             </View>
           </Card>
 
@@ -349,8 +391,8 @@ export default function HomeScreen() {
           </Card>
         )}
 
-        {/* ── Søvnhygiene-tips ── */}
-        <SleepHygieneTip hour={nowHour} />
+        {/* ── Sleep hygiene tip (rotating) ── */}
+        <RotatingTip hour={nowHour} />
 
         {/* ── Hurtig-logg ── */}
         <TouchableOpacity
