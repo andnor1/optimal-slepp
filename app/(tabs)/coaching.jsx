@@ -11,6 +11,8 @@ import { calibrateFromLog, localDate } from '../../src/engine/sleepEngine';
 import { Storage } from '../../src/utils/storage';
 import { earnedBadges } from '../../src/utils/badges';
 import { loadSettings } from '../../src/utils/settings';
+import { useSubscription } from '../../src/hooks/useSubscription';
+import { useRouter } from 'expo-router';
 
 const T = {
   bg: '#060914', surface: '#0C1220', elevated: '#111A2E',
@@ -262,6 +264,8 @@ function TipCard({ tip, isDone, onToggleDone }) {
 }
 
 export default function CoachingScreen() {
+  const { isPremium } = useSubscription();
+  const router = useRouter();
   const [todaysTips,  setTodaysTips]  = useState([]);
   const [allTips,     setAllTips]     = useState(false);
   const [selCat,      setSelCat]      = useState(null);
@@ -445,8 +449,8 @@ export default function CoachingScreen() {
           </View>
         )}
 
-        {/* Weekly challenge */}
-        {!allTips && challenge && (
+        {/* Weekly challenge – premium only */}
+        {isPremium && !allTips && challenge && (
           <View style={[ts.card, { marginBottom: 16, borderColor: `${T.blue}40` }]}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <Text style={ts.mono10}>THIS WEEK'S CHALLENGE</Text>
@@ -491,10 +495,26 @@ export default function CoachingScreen() {
           </View>
         )}
 
-        {/* Tip cards */}
-        {shown.map(tip => (
+        {/* Tip cards – first 2 free, rest premium */}
+        {shown.slice(0, isPremium ? shown.length : 2).map(tip => (
           <TipCard key={tip.id} tip={tip} isDone={done.includes(tip.id)} onToggleDone={toggleDone} />
         ))}
+        {!isPremium && shown.length > 2 && (
+          <View style={[ts.card, { marginBottom: 12, borderColor: 'rgba(240,185,82,.3)', backgroundColor: 'rgba(240,185,82,.06)', alignItems: 'center', paddingVertical: 24 }]}>
+            <Text style={{ fontSize: 28, marginBottom: 10 }}>✨</Text>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: '#F0B952', marginBottom: 6 }}>
+              {shown.length - 2} more tips with Premium
+            </Text>
+            <Text style={{ fontSize: 12, color: '#7A96B8', textAlign: 'center', marginBottom: 18, lineHeight: 20 }}>
+              Unlock all coaching tips, weekly challenges, and personalised insights.
+            </Text>
+            <TouchableOpacity
+              style={{ backgroundColor: '#F0B952', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 28 }}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push('/paywall'); }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: '#060914' }}>Unlock with Premium</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={{ height: 32 }} />
       </ScrollView>

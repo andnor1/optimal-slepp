@@ -14,6 +14,8 @@ import { minToTime, formatDur } from '../../src/engine/sleepEngine';
 import { Storage } from '../../src/utils/storage';
 import { loadSettings, DEFAULT_SETTINGS } from '../../src/utils/settings';
 import { isHealthAvailable, requestHealthPermissions } from '../../src/utils/healthKit';
+import { useSubscription } from '../../src/hooks/useSubscription';
+import PremiumGate from '../../src/components/PremiumGate';
 import TimePicker from '../../src/components/TimePicker';
 
 const T = {
@@ -32,6 +34,7 @@ const SMART_OPTS   = [15, 30, 45];
 export default function AlarmScreen() {
   const recorder = useSleepRecorder();
   const alarm    = useSmartAlarm();
+  const { isPremium } = useSubscription();
 
   const [newTime,      setNewTime]      = useState('07:00');
   const [smartWake,    setSmartWake]    = useState(DEFAULT_SETTINGS.smartAlarm);
@@ -227,35 +230,40 @@ export default function AlarmScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Smart wake toggle */}
-          <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom: smartWake ? 12 : 0 }}>
-            <View>
-              <Text style={{ fontSize:13, fontWeight:'600', color:T.text }}>Smart Wake</Text>
-              <Text style={{ fontSize:11, color:T.muted, marginTop:2 }}>Wake in light sleep within the window</Text>
-            </View>
-            <Switch
-              value={smartWake}
-              onValueChange={setSmartWake}
-              trackColor={{ false:T.elevated, true:T.accent }}
-              thumbColor="white"
-              ios_backgroundColor={T.elevated}
-            />
-          </View>
-
-          {smartWake && (
-            <View style={{ flexDirection:'row', gap:8 }}>
-              {SMART_OPTS.map(m => (
-                <TouchableOpacity
-                  key={m}
-                  onPress={() => setSmartMins(m)}
-                  style={[styles.optBtn, smartMins === m && styles.optBtnActive]}>
-                  <Text style={{ fontSize:12, fontWeight:'600', color: smartMins === m ? '#060914' : T.sub }}>
-                    {m} min
-                  </Text>
-                </TouchableOpacity>
-              ))}
-              <Text style={{ fontSize:11, color:T.muted, alignSelf:'center', marginLeft:4 }}>before alarm</Text>
-            </View>
+          {/* Smart wake toggle – premium only */}
+          {isPremium ? (
+            <>
+              <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom: smartWake ? 12 : 0 }}>
+                <View>
+                  <Text style={{ fontSize:13, fontWeight:'600', color:T.text }}>Smart Wake</Text>
+                  <Text style={{ fontSize:11, color:T.muted, marginTop:2 }}>Wake in light sleep within the window</Text>
+                </View>
+                <Switch
+                  value={smartWake}
+                  onValueChange={setSmartWake}
+                  trackColor={{ false:T.elevated, true:T.accent }}
+                  thumbColor="white"
+                  ios_backgroundColor={T.elevated}
+                />
+              </View>
+              {smartWake && (
+                <View style={{ flexDirection:'row', gap:8 }}>
+                  {SMART_OPTS.map(m => (
+                    <TouchableOpacity
+                      key={m}
+                      onPress={() => setSmartMins(m)}
+                      style={[styles.optBtn, smartMins === m && styles.optBtnActive]}>
+                      <Text style={{ fontSize:12, fontWeight:'600', color: smartMins === m ? '#060914' : T.sub }}>
+                        {m} min
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                  <Text style={{ fontSize:11, color:T.muted, alignSelf:'center', marginLeft:4 }}>before alarm</Text>
+                </View>
+              )}
+            </>
+          ) : (
+            <PremiumGate feature="Smart Alarm – wake in the lightest sleep phase" />
           )}
         </View>
 
@@ -292,16 +300,18 @@ export default function AlarmScreen() {
           </View>
         )}
 
-        {/* ── Sleep Recording (only shown when nightRecording enabled in Settings) ── */}
-        {!settings.nightRecording && (
+        {/* ── Sleep Recording – premium + settings gate ── */}
+        {!isPremium ? (
+          <PremiumGate feature="Night Recording & Sleep Analysis" />
+        ) : !settings.nightRecording ? (
           <View style={[styles.card, { marginBottom:16, borderColor:`${T.gold}30`, backgroundColor:'rgba(240,185,82,.06)' }]}>
             <Text style={{ fontSize:13, fontWeight:'600', color:T.gold, marginBottom:4 }}>🎤 Night Recording disabled</Text>
             <Text style={{ fontSize:12, color:T.muted, lineHeight:18 }}>
               Enable <Text style={{ color:T.sub, fontWeight:'600' }}>Night Recording</Text> in Profile → Settings to analyse sleep depth.
             </Text>
           </View>
-        )}
-        {settings.nightRecording && <View style={[styles.card, {
+        ) : null}
+        {isPremium && settings.nightRecording && <View style={[styles.card, {
           backgroundColor: recorder.isRecording ? T.accentLo : T.surface,
           borderColor: recorder.isRecording ? `${T.accent}40` : T.border,
           marginBottom:16,

@@ -14,6 +14,7 @@ import { calibrateFromLog } from '../../src/engine/sleepEngine';
 import { Storage } from '../../src/utils/storage';
 import { earnedBadges } from '../../src/utils/badges';
 import { loadSettings, saveSettings, DEFAULT_SETTINGS } from '../../src/utils/settings';
+import { useSubscription } from '../../src/hooks/useSubscription';
 
 // Decimal hour (e.g. 2.75) → "02:45"
 function peakStr(h) {
@@ -174,6 +175,7 @@ const INFO_ITEMS = [
 
 // ─── Main screen ─────────────────────────────────────────────────────────────
 export default function ProfilScreen() {
+  const { isPremium } = useSubscription();
   const [name,       setName]       = useState('');
   const [tmpName,    setTmpName]    = useState('');
   const [editing,    setEditing]    = useState(false);
@@ -293,11 +295,18 @@ export default function ProfilScreen() {
                   {name || 'User'}
                 </Text>
               )}
-              <Text style={{ fontSize:12, color:T.muted }}>
-                {calib.dataPoints >= 3
-                  ? 'Personal model active'
-                  : `${calib.dataPoints}/3 nights to calibration`}
-              </Text>
+              <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginTop:2 }}>
+                <Text style={{ fontSize:12, color:T.muted }}>
+                  {calib.dataPoints >= 3
+                    ? 'Personal model active'
+                    : `${calib.dataPoints}/3 nights to calibration`}
+                </Text>
+                {isPremium && (
+                  <View style={{ backgroundColor:'rgba(240,185,82,.15)', borderRadius:6, paddingHorizontal:6, paddingVertical:2 }}>
+                    <Text style={{ fontSize:10, fontWeight:'700', color:'#F0B952' }}>✨ Premium</Text>
+                  </View>
+                )}
+              </View>
             </View>
             <TouchableOpacity
               onPress={editing ? saveEditing : () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setEditing(true); }}

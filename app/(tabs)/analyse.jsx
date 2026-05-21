@@ -21,6 +21,8 @@ import {
 } from '../../src/engine/sleepEngine';
 import { Storage } from '../../src/utils/storage';
 import { loadSettings, DEFAULT_SETTINGS } from '../../src/utils/settings';
+import { useSubscription } from '../../src/hooks/useSubscription';
+import PremiumGate from '../../src/components/PremiumGate';
 
 const T = {
   bg:'#060914', surface:'#0C1220', elevated:'#111A2E',
@@ -266,6 +268,7 @@ function QuickLogModal({ visible, onSave, onClose }) {
 
 // ─── Main screen ─────────────────────────────────────────────────────────────
 export default function AnalyseScreen() {
+  const { isPremium } = useSubscription();
   const [log,          setLog]          = useState([]);
   const [calib,        setCalib]        = useState({ dlmoShift:0, amplitude:1.0, dataPoints:0 });
   const [lastAnalysis, setLastAnalysis] = useState(null);
@@ -460,8 +463,11 @@ export default function AnalyseScreen() {
           </ViewShot>
         )}
 
-        {/* ── Weekly score ── */}
-        {weekScore && (
+        {/* ── Weekly score – premium ── */}
+        {!isPremium && (
+          <PremiumGate feature="Weekly Sleep Score & advanced statistics" />
+        )}
+        {isPremium && weekScore && (
           <View style={[s.card, { marginBottom:16 }]}>
             <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
               <Text style={s.mono10}>WEEKLY SLEEP SCORE</Text>
@@ -500,8 +506,8 @@ export default function AnalyseScreen() {
           </View>
         )}
 
-        {/* ── Insights ── */}
-        {insights.length > 0 && (
+        {/* ── Insights – premium ── */}
+        {isPremium && insights.length > 0 && (
           <View style={[s.card, { marginBottom:16, borderLeftWidth:3, borderLeftColor:T.blue }]}>
             <Text style={[s.mono10, { marginBottom:12 }]}>PERSONAL INSIGHTS</Text>
             {insights.map((insight, i) => (
@@ -513,8 +519,8 @@ export default function AnalyseScreen() {
           </View>
         )}
 
-        {/* ── Siste innspilte natt ── */}
-        {lastAnalysis && (
+        {/* ── Siste innspilte natt – premium ── */}
+        {isPremium && lastAnalysis && (
           <View style={[s.card, { marginBottom:16 }]}>
             <Text style={[s.mono10, { marginBottom:12 }]}>LAST RECORDED NIGHT</Text>
 

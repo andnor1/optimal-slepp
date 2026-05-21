@@ -17,6 +17,8 @@ import {
   optimizeSleep, calibrateFromLog, parseWindow, localDate,
 } from '../../src/engine/sleepEngine';
 import { Storage } from '../../src/utils/storage';
+import { useSubscription } from '../../src/hooks/useSubscription';
+import PremiumGate from '../../src/components/PremiumGate';
 
 const T = {
   bg:'#060914', surface:'#0C1220', elevated:'#111A2E',
@@ -147,6 +149,7 @@ function TzPicker({ label, value, onChange }) {
 
 // ─── Main screen ─────────────────────────────────────────────────────────────
 export default function PlanScreen() {
+  const { isPremium } = useSubscription();
   const [windows,   setWindows]   = useState([]);
   const [lwd,       setLwd]       = useState(localDate(0));
   const [lwt,       setLwt]       = useState('08:00');
@@ -385,16 +388,17 @@ export default function PlanScreen() {
           </>
         )}
 
-        {/* ── Jetlag Calculator ── */}
-        <TouchableOpacity
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowJetlag(v => !v); }}
-          style={[s.addWindowBtn, { borderColor:T.blue, marginTop:8 }]}>
-          <Text style={[s.addWindowBtnText, { color:T.blue }]}>
-            ✈️ Jetlag Calculator {showJetlag ? '▲' : '▾'}
-          </Text>
-        </TouchableOpacity>
-
-        {showJetlag && (
+        {/* ── Jetlag Calculator – premium only ── */}
+        {isPremium ? (
+          <>
+            <TouchableOpacity
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowJetlag(v => !v); }}
+              style={[s.addWindowBtn, { borderColor:T.blue, marginTop:8 }]}>
+              <Text style={[s.addWindowBtnText, { color:T.blue }]}>
+                ✈️ Jetlag Calculator {showJetlag ? '▲' : '▾'}
+              </Text>
+            </TouchableOpacity>
+            {showJetlag && (
           <Card style={{ marginBottom:16 }}>
             <Text style={[s.mono9, { marginBottom:14 }]}>TIMEZONE ADJUSTMENT PLAN</Text>
 
@@ -470,6 +474,10 @@ export default function PlanScreen() {
               )
             )}
           </Card>
+            )}
+          </>
+        ) : (
+          <PremiumGate feature="Jetlag Calculator – timezone adaptation plan" />
         )}
 
         <View style={{ height:32 }} />
