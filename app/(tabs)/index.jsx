@@ -19,6 +19,7 @@ import {
   optimizeSleep, calibrateFromLog, parseWindow,
 } from '../../src/engine/sleepEngine';
 import { Storage } from '../../src/utils/storage';
+import { loadSettings, DEFAULT_SETTINGS } from '../../src/utils/settings';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const T = {
@@ -154,12 +155,13 @@ const ALL_HOME_TIPS = [
   { icon:'💧', title:'Hydrate before 8 PM', text:'Stop liquids 2h before sleep to prevent nighttime awakenings. Hydrate during the day instead.' },
 ];
 
-function RotatingTip({ hour }) {
+function RotatingTip({ hour, animate = true }) {
   const [idx, setIdx] = useState(0);
   const opacity = useSharedValue(1);
   const tipFadeStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
 
   useEffect(() => {
+    if (!animate) return;
     const timer = setInterval(() => {
       opacity.value = withTiming(0, { duration: 400 }, () => {
         opacity.value = withTiming(1, { duration: 400 });
@@ -167,7 +169,7 @@ function RotatingTip({ hour }) {
       setIdx(i => (i + 1) % ALL_HOME_TIPS.length);
     }, 30000);
     return () => clearInterval(timer);
-  }, []);
+  }, [animate]);
 
   const tip = ALL_HOME_TIPS[idx];
   return (
@@ -194,13 +196,18 @@ export default function HomeScreen() {
   const [log,       setLog]       = useState([]);
   const [calib,     setCalib]     = useState({ dlmoShift: 0, amplitude: 1.0 });
   const [username,  setUsername]  = useState('');
-  const [refreshing,setRefreshing]= useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [settings,   setSettings]   = useState(DEFAULT_SETTINGS);
 
-  // Melatonin ring pulse
+  // Melatonin ring pulse – only when animations enabled
   const melPulse = useSharedValue(1);
   useEffect(() => {
-    melPulse.value = withRepeat(withTiming(1.08, { duration: 2200 }), -1, true);
-  }, []);
+    if (settings.animations) {
+      melPulse.value = withRepeat(withTiming(1.08, { duration: 2200 }), -1, true);
+    } else {
+      melPulse.value = 1;
+    }
+  }, [settings.animations]);
   const melPulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: melPulse.value }] }));
 
   const loadData = useCallback(async () => {
@@ -211,6 +218,8 @@ export default function HomeScreen() {
         Storage.getLastWoke(),
         Storage.getUsername(),
       ]);
+      const cfg = await loadSettings();
+      setSettings(cfg);
       setLog(storedLog);
       setUsername(name);
       const c = calibrateFromLog(storedLog);
@@ -336,37 +345,43 @@ export default function HomeScreen() {
           </Card>
         )}
 
-        {/* ── Melatonin + Restitusjon ── */}
-        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
-          <Card style={{ flex: 1, margin: 0 }}>
-            <Text style={[styles.mono10, { marginBottom: 8 }]}>MELATONIN NOW</Text>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <View>
-                <Text style={{ fontSize: 24, fontWeight: '700', color: T.accent }}>{melNow}%</Text>
-                <Text style={{ fontSize: 11, color: T.sub }}>{melNow > 60 ? 'Rising' : 'Low'}</Text>
-              </View>
-              <Animated.View style={melPulseStyle}>
-                <MelRing shift={calib.dlmoShift} amp={calib.amplitude} size={56} />
-              </Animated.View>
-            </View>
-          </Card>
-
-          <Card style={{ flex: 1, margin: 0 }}>
-            <Text style={[styles.mono10, { marginBottom: 8 }]}>RECOVERY</Text>
-            {restScore !== null ? (
-              <View>
-                <Text style={{ fontSize: 24, fontWeight: '700', color: restScore >= 70 ? T.accent : restScore >= 40 ? T.gold : T.red }}>
-                  {restScore}%
-                </Text>
-                <Text style={{ fontSize: 11, color: T.sub }}>
-                  {restScore >= 70 ? 'Well rested' : restScore >= 40 ? 'Moderate' : hoursAwakeNow !== null ? `${Math.round(hoursAwakeNow)}h since sleep` : ''}
-                </Text>
-              </View>
-            ) : (
-              <Text style={{ fontSize: 13, color: T.muted }}>Log sleep for score</Text>
+        {/* ── Melatonin + Recovery ── */}
+        {(settings.showMelatoninRing || settings.showRecoveryScore) && (
+          <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
+            {settings.showMelatoninRing && (
+              <Card style={{ flex: 1, margin: 0 }}>
+                <Text style={[styles.mono10, { marginBottom: 8 }]}>MELATONIN NOW</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <View>
+                    <Text style={{ fontSize: 24, fontWeight: '700', color: T.accent }}>{melNow}%</Text>
+                    <Text style={{ fontSize: 11, color: T.sub }}>{melNow > 60 ? 'Rising' : 'Low'}</Text>
+                  </View>
+                  <Animated.View style={melPulseStyle}>
+                    <MelRing shift={calib.dlmoShift} amp={calib.amplitude} size={56} />
+                  </Animated.View>
+                </View>
+              </Card>
             )}
-          </Card>
-        </View>
+
+            {settings.showRecoveryScore && (
+              <Card style={{ flex: 1, margin: 0 }}>
+                <Text style={[styles.mono10, { marginBottom: 8 }]}>RECOVERY</Text>
+                {restScore !== null ? (
+                  <View>
+                    <Text style={{ fontSize: 24, fontWeight: '700', color: restScore >= 70 ? T.accent : restScore >= 40 ? T.gold : T.red }}>
+                      {restScore}%
+                    </Text>
+                    <Text style={{ fontSize: 11, color: T.sub }}>
+                      {restScore >= 70 ? 'Well rested' : restScore >= 40 ? 'Moderate' : hoursAwakeNow !== null ? `${Math.round(hoursAwakeNow)}h since sleep` : ''}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={{ fontSize: 13, color: T.muted }}>Log sleep for score</Text>
+                )}
+              </Card>
+            )}
+          </View>
+        )}
 
         {/* ── Kommende søvn ── */}
         {upcoming.length > 0 && (
@@ -392,7 +407,7 @@ export default function HomeScreen() {
         )}
 
         {/* ── Sleep hygiene tip (rotating) ── */}
-        <RotatingTip hour={nowHour} />
+        <RotatingTip hour={nowHour} animate={settings.animations} />
 
         {/* ── Hurtig-logg ── */}
         <TouchableOpacity

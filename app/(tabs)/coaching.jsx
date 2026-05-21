@@ -10,6 +10,7 @@ import * as Notifications from 'expo-notifications';
 import { calibrateFromLog, localDate } from '../../src/engine/sleepEngine';
 import { Storage } from '../../src/utils/storage';
 import { earnedBadges } from '../../src/utils/badges';
+import { loadSettings } from '../../src/utils/settings';
 
 const T = {
   bg: '#060914', surface: '#0C1220', elevated: '#111A2E',
@@ -298,9 +299,12 @@ export default function CoachingScreen() {
     setChallenge(chal);
     setChalDays(state.challengeDays ?? 0);
 
-    // Schedule daily notification (once per day)
-    const lastNotifDate = await Storage.getCoachingNotifDate();
-    if (lastNotifDate !== today) {
+    // Schedule daily notification (once per day, only when setting enabled)
+    const [cfg, lastNotifDate] = await Promise.all([
+      loadSettings(),
+      Storage.getCoachingNotifDate(),
+    ]);
+    if (cfg.dailySleepTip && lastNotifDate !== today) {
       try {
         await Notifications.requestPermissionsAsync();
         const tipForNotif = getTodaysTips(21, lastQ)[0];

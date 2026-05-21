@@ -7,11 +7,13 @@ import {
   Switch, StyleSheet, Alert, RefreshControl,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import * as Notifications from 'expo-notifications';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { calibrateFromLog } from '../../src/engine/sleepEngine';
 import { Storage } from '../../src/utils/storage';
 import { earnedBadges } from '../../src/utils/badges';
+import { loadSettings, saveSettings, DEFAULT_SETTINGS } from '../../src/utils/settings';
 
 // Decimal hour (e.g. 2.75) → "02:45"
 function peakStr(h) {
@@ -30,6 +32,7 @@ const T = {
   text:'#E2EAF4', sub:'#7A96B8', muted:'#3A4F6A',
 };
 
+// ─── Shared sub-components ───────────────────────────────────────────────────
 function Card({ children, style }) {
   return <View style={[s.card, style]}>{children}</View>;
 }
@@ -48,37 +51,152 @@ function InfoRow({ icon, title, desc }) {
   );
 }
 
+// ─── Setting row components ──────────────────────────────────────────────────
+function SettingToggle({ label, desc, value, onChange }) {
+  return (
+    <View style={s.settingRow}>
+      <View style={{ flex:1, marginRight:14 }}>
+        <Text style={s.settingLabel}>{label}</Text>
+        {desc ? <Text style={s.settingDesc}>{desc}</Text> : null}
+      </View>
+      <Switch
+        value={value}
+        onValueChange={v => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onChange(v); }}
+        trackColor={{ false:T.elevated, true:T.accent }}
+        thumbColor="white"
+        ios_backgroundColor={T.elevated}
+      />
+    </View>
+  );
+}
+
+function SettingSegment({ label, desc, options, value, onChange, format = v => String(v) }) {
+  return (
+    <View style={s.settingBlock}>
+      <Text style={s.settingLabel}>{label}</Text>
+      {desc ? <Text style={[s.settingDesc, { marginBottom:8 }]}>{desc}</Text> : <View style={{ height:8 }} />}
+      <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6 }}>
+        {options.map(opt => (
+          <TouchableOpacity
+            key={String(opt)}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onChange(opt); }}
+            style={[s.segBtn, value === opt && s.segBtnActive]}>
+            <Text style={{ fontSize:12, fontWeight:'600', color: value === opt ? '#060914' : T.sub }}>
+              {format(opt)}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function SettingSection({ title, children }) {
+  const items = Array.isArray(children) ? children : [children];
+  return (
+    <View style={{ marginBottom:16 }}>
+      <Text style={s.settingSectionTitle}>{title}</Text>
+      <View style={s.card}>
+        {items.filter(Boolean).map((child, i, arr) => (
+          <View key={i}>
+            {child}
+            {i < arr.length - 1 && <View style={s.settingDivider} />}
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+// ─── Bedtime reminder helpers ────────────────────────────────────────────────
+function bedtimeReminderTime(calib, reminderMins) {
+  const bedH  = ((21 + (calib.dlmoShift || 0) + 2) % 24 + 24) % 24;
+  const total = ((bedH * 60 - reminderMins) % 1440 + 1440) % 1440;
+  return { hour: Math.floor(total / 60), minute: total % 60 };
+}
+
+async function scheduleBedtimeReminder(calib, mins) {
+  const existing = await Storage.getBedtimeNotifId();
+  if (existing) {
+    await Notifications.cancelScheduledNotificationAsync(existing).catch(() => {});
+  }
+  const { hour, minute } = bedtimeReminderTime(calib, mins);
+  const id = await Notifications.scheduleNotificationAsync({
+    content: {
+      title: '🌙 Bedtime soon',
+      body: `Your target bedtime is in ${mins} minutes. Start winding down.`,
+      sound: false,
+    },
+    trigger: { hour, minute, repeats: true },
+  }).catch(() => null);
+  await Storage.saveBedtimeNotifId(id);
+}
+
+async function cancelBedtimeReminder() {
+  const id = await Storage.getBedtimeNotifId();
+  if (id) {
+    await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
+    await Storage.saveBedtimeNotifId(null);
+  }
+}
+
+async function scheduleWeeklyReport() {
+  const existing = await Storage.getWeeklyReportNotifId();
+  if (existing) {
+    await Notifications.cancelScheduledNotificationAsync(existing).catch(() => {});
+  }
+  const id = await Notifications.scheduleNotificationAsync({
+    content: {
+      title: '📊 Weekly Sleep Report',
+      body: "Your weekly sleep insights are ready — open Analysis to see them.",
+      sound: false,
+    },
+    trigger: { weekday: 2, hour: 9, minute: 0, repeats: true }, // Monday 09:00
+  }).catch(() => null);
+  await Storage.saveWeeklyReportNotifId(id);
+}
+
+async function cancelWeeklyReport() {
+  const id = await Storage.getWeeklyReportNotifId();
+  if (id) {
+    await Notifications.cancelScheduledNotificationAsync(id).catch(() => {});
+    await Storage.saveWeeklyReportNotifId(null);
+  }
+}
+
+// ─── Static content ──────────────────────────────────────────────────────────
 const INFO_ITEMS = [
-  ['🧬','Melatonin Model',   'Cosine curve with personal DLMO calibration based on sleep history'],
-  ['📈','Calibration',       'After 3+ logged nights your personal phase and amplitude are calculated'],
-  ['🔄','Continuous time',   'The algorithm plans the entire period as one timeline, not isolated windows'],
-  ['💤','Sleep Cycles',      'Recommended sleep length snaps to 90-minute cycles for optimal sleep architecture'],
+  ['🧬', 'Melatonin Model',   'Cosine curve with personal DLMO calibration based on sleep history'],
+  ['📈', 'Calibration',       'After 3+ logged nights your personal phase and amplitude are calculated'],
+  ['🔄', 'Continuous time',   'The algorithm plans the entire period as one timeline, not isolated windows'],
+  ['💤', 'Sleep Cycles',      'Recommended sleep length snaps to 90-minute cycles for optimal sleep architecture'],
 ];
 
+// ─── Main screen ─────────────────────────────────────────────────────────────
 export default function ProfilScreen() {
-  const [name,         setName]         = useState('');
-  const [tmpName,      setTmpName]      = useState('');
-  const [editing,      setEditing]      = useState(false);
-  const [calib,        setCalib]        = useState({ dlmoShift:0, amplitude:1.0, dataPoints:0 });
-  const [log,          setLog]          = useState([]);
-  const [alarmEnabled, setAlarmEnabled] = useState(false);
-  const [badges,       setBadges]       = useState([]);
-  const [refreshing,   setRefreshing]   = useState(false);
+  const [name,       setName]       = useState('');
+  const [tmpName,    setTmpName]    = useState('');
+  const [editing,    setEditing]    = useState(false);
+  const [calib,      setCalib]      = useState({ dlmoShift:0, amplitude:1.0, dataPoints:0 });
+  const [log,        setLog]        = useState([]);
+  const [badges,     setBadges]     = useState([]);
+  const [settings,   setSettings]   = useState(DEFAULT_SETTINGS);
+  const [refreshing, setRefreshing] = useState(false);
 
   const loadData = useCallback(async () => {
-    const [storedLog, n, ae, coachState, napLog] = await Promise.all([
+    const [storedLog, n, coachState, napLog, storedSettings] = await Promise.all([
       Storage.getLog(),
       Storage.getUsername(),
-      Storage.getAlarmEnabled(),
       Storage.getCoachingState(),
       Storage.getNapLog(),
+      loadSettings(),
     ]);
     setLog(storedLog);
     setCalib(calibrateFromLog(storedLog));
     setName(n);
     setTmpName(n);
-    setAlarmEnabled(ae);
     setBadges(earnedBadges(storedLog, coachState?.streak ?? 0, napLog));
+    setSettings(storedSettings);
   }, []);
 
   const onRefresh = useCallback(async () => {
@@ -89,17 +207,39 @@ export default function ProfilScreen() {
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
+  // Update a single setting key, save, and handle side effects
+  const updateSetting = async (key, value) => {
+    const next = { ...settings, [key]: value };
+    setSettings(next);
+    await saveSettings(next);
+
+    // Side effects
+    if (key === 'bedtimeReminder' || key === 'bedtimeReminderMins') {
+      const enabled = key === 'bedtimeReminder' ? value : next.bedtimeReminder;
+      const mins    = key === 'bedtimeReminderMins' ? value : next.bedtimeReminderMins;
+      if (enabled) await scheduleBedtimeReminder(calib, mins);
+      else         await cancelBedtimeReminder();
+    }
+    if (key === 'weeklyReport') {
+      if (value) await scheduleWeeklyReport();
+      else       await cancelWeeklyReport();
+    }
+    if (key === 'dailySleepTip' && !value) {
+      // Cancel any pending coaching notification
+      const notifDate = await Storage.getCoachingNotifDate();
+      if (notifDate) {
+        await Notifications.cancelAllScheduledNotificationsAsync().catch(() => {});
+        await Storage.saveCoachingNotifDate(null);
+      }
+    }
+  };
+
   const saveEditing = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const trimmed = tmpName.trim();
     setName(trimmed);
     setEditing(false);
     await Storage.saveUsername(trimmed);
-  };
-
-  const toggleAlarm = async (val) => {
-    setAlarmEnabled(val);
-    await Storage.saveAlarmEnabled(val);
   };
 
   const confirmClearLog = () => {
@@ -130,7 +270,7 @@ export default function ProfilScreen() {
       >
         <Text style={s.title}>Profile & Settings</Text>
 
-        {/* ── Profilkort ── */}
+        {/* ── Profile card ── */}
         <Card style={{ marginBottom:16 }}>
           <View style={{ flexDirection:'row', alignItems:'center', gap:14, marginBottom:16 }}>
             <View style={s.avatar}>
@@ -179,7 +319,6 @@ export default function ProfilScreen() {
             ))}
           </View>
 
-          {/* ── DLMO peak time ── */}
           {calib.dataPoints >= 3 && (
             <View style={s.dlmoBanner}>
               <View style={{ flex:1 }}>
@@ -205,28 +344,7 @@ export default function ProfilScreen() {
           )}
         </Card>
 
-        {/* ── Smart alarm toggle ── */}
-        <Card style={{ marginBottom:16 }}>
-          <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
-            <View style={{ flex:1, marginRight:16 }}>
-              <Text style={{ fontSize:14, fontWeight:'600', color:T.text, marginBottom:2 }}>
-                🔔 Smart Alarm Clock
-              </Text>
-              <Text style={{ fontSize:12, color:T.muted }}>
-                Alarm is automatically set to recommended wake time
-              </Text>
-            </View>
-            <Switch
-              value={alarmEnabled}
-              onValueChange={toggleAlarm}
-              trackColor={{ false:T.elevated, true:T.accent }}
-              thumbColor="white"
-              ios_backgroundColor={T.elevated}
-            />
-          </View>
-        </Card>
-
-        {/* ── Kalibreringsstatus ── */}
+        {/* ── Calibration status ── */}
         {calib.dataPoints > 0 && (
           <Card style={{ marginBottom:16 }}>
             <Text style={[s.mono10, { marginBottom:12 }]}>CALIBRATION STATUS</Text>
@@ -244,31 +362,22 @@ export default function ProfilScreen() {
               [30, T.accent,'30+ nights', 'Precise individual sleep model'],
             ].map(([threshold, col, lbl, desc]) => (
               <View key={lbl} style={{ flexDirection:'row', alignItems:'center', gap:10, marginBottom:8 }}>
-                <View style={{
-                  width:8, height:8, borderRadius:4,
-                  backgroundColor: calib.dataPoints >= threshold ? col : T.muted,
-                }} />
-                <Text style={{ fontSize:13, color: calib.dataPoints >= threshold ? col : T.muted, fontWeight:'600' }}>
-                  {lbl}{' '}
-                </Text>
+                <View style={{ width:8, height:8, borderRadius:4, backgroundColor: calib.dataPoints >= threshold ? col : T.muted }} />
+                <Text style={{ fontSize:13, color: calib.dataPoints >= threshold ? col : T.muted, fontWeight:'600' }}>{lbl} </Text>
                 <Text style={{ fontSize:13, color:T.sub, flex:1 }}>{desc}</Text>
               </View>
             ))}
           </Card>
         )}
 
-        {/* ── Badges ── */}
+        {/* ── Achievements ── */}
         {badges.length > 0 && (
           <Card style={{ marginBottom:16 }}>
             <Text style={[s.mono10, { marginBottom:12 }]}>ACHIEVEMENTS</Text>
             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:10 }}>
               {badges.map(b => (
                 <View key={b.id} style={{ alignItems:'center', gap:4, minWidth:68 }}>
-                  <View style={{
-                    width:52, height:52, borderRadius:16,
-                    backgroundColor:T.elevated, alignItems:'center', justifyContent:'center',
-                    borderWidth:1, borderColor:`${T.accent}30`,
-                  }}>
+                  <View style={{ width:52, height:52, borderRadius:16, backgroundColor:T.elevated, alignItems:'center', justifyContent:'center', borderWidth:1, borderColor:`${T.accent}30` }}>
                     <Text style={{ fontSize:26 }}>{b.icon}</Text>
                   </View>
                   <Text style={{ fontSize:10, color:T.sub, textAlign:'center', maxWidth:68 }}>{b.title}</Text>
@@ -278,13 +387,143 @@ export default function ProfilScreen() {
           </Card>
         )}
 
-        {/* ── Om appen ── */}
-        <Text style={s.sectionLabel}>About the app</Text>
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {/* SETTINGS                                                          */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        <Text style={[s.sectionLabel, { marginTop:8, marginBottom:12 }]}>Settings</Text>
+
+        {/* Notifications & Alerts */}
+        <SettingSection title="NOTIFICATIONS & ALERTS">
+          <SettingToggle
+            label="Smart Alarm"
+            desc="Wake in light sleep within the smart wake window"
+            value={settings.smartAlarm}
+            onChange={v => updateSetting('smartAlarm', v)}
+          />
+          <SettingToggle
+            label="Bedtime Reminder"
+            desc="Notification before your target bedtime"
+            value={settings.bedtimeReminder}
+            onChange={v => updateSetting('bedtimeReminder', v)}
+          />
+          {settings.bedtimeReminder && (
+            <SettingSegment
+              label="Remind me"
+              options={[15, 30, 45, 60]}
+              value={settings.bedtimeReminderMins}
+              onChange={v => updateSetting('bedtimeReminderMins', v)}
+              format={m => `${m} min before`}
+            />
+          )}
+          <SettingToggle
+            label="Daily Sleep Tip"
+            desc="Evening notification with a personalised hygiene tip"
+            value={settings.dailySleepTip}
+            onChange={v => updateSetting('dailySleepTip', v)}
+          />
+          <SettingToggle
+            label="Weekly Report"
+            desc="Monday morning summary of last week's sleep"
+            value={settings.weeklyReport}
+            onChange={v => updateSetting('weeklyReport', v)}
+          />
+        </SettingSection>
+
+        {/* Sleep Recording */}
+        <SettingSection title="SLEEP RECORDING">
+          <SettingToggle
+            label="Enable Night Recording"
+            desc="Microphone analysis of sleep depth during the night"
+            value={settings.nightRecording}
+            onChange={v => updateSetting('nightRecording', v)}
+          />
+          <SettingSegment
+            label="Smart Wake Window"
+            desc="How many minutes before alarm to check for light sleep"
+            options={[15, 20, 30, 45, 60]}
+            value={settings.smartWakeWindow}
+            onChange={v => updateSetting('smartWakeWindow', v)}
+            format={m => `${m} min`}
+          />
+          <SettingSegment
+            label="Recording Quality"
+            desc="Higher quality uses more battery"
+            options={['low', 'medium', 'high']}
+            value={settings.recordingQuality}
+            onChange={v => updateSetting('recordingQuality', v)}
+            format={v => v.charAt(0).toUpperCase() + v.slice(1)}
+          />
+        </SettingSection>
+
+        {/* Health & Data */}
+        <SettingSection title="HEALTH & DATA">
+          <SettingToggle
+            label="Apple Health Sync"
+            desc="Read heart rate and movement data from Apple Health"
+            value={settings.appleHealthSync}
+            onChange={v => updateSetting('appleHealthSync', v)}
+          />
+          <SettingToggle
+            label="Save Sleep to Apple Health"
+            desc="Write sleep sessions back to Apple Health"
+            value={settings.saveToAppleHealth}
+            onChange={v => updateSetting('saveToAppleHealth', v)}
+          />
+        </SettingSection>
+
+        {/* Display */}
+        <SettingSection title="DISPLAY">
+          <SettingToggle
+            label="Animations"
+            desc="Disable for a simpler, static interface"
+            value={settings.animations}
+            onChange={v => updateSetting('animations', v)}
+          />
+          <SettingToggle
+            label="Show Melatonin Ring"
+            desc="Live melatonin level indicator on the home screen"
+            value={settings.showMelatoninRing}
+            onChange={v => updateSetting('showMelatoninRing', v)}
+          />
+          <SettingToggle
+            label="Show Recovery Score"
+            desc="Recovery estimate based on hours since last sleep"
+            value={settings.showRecoveryScore}
+            onChange={v => updateSetting('showRecoveryScore', v)}
+          />
+          <SettingToggle
+            label="24-hour Clock"
+            desc="Use 24h format instead of 12h AM/PM"
+            value={settings.clockFormat24h}
+            onChange={v => updateSetting('clockFormat24h', v)}
+          />
+        </SettingSection>
+
+        {/* Sleep Goals */}
+        <SettingSection title="SLEEP GOALS">
+          <SettingSegment
+            label="Target Sleep Duration"
+            desc="Used for recommendations and goal tracking"
+            options={[6, 7, 7.5, 8, 9]}
+            value={settings.targetSleepHours}
+            onChange={v => updateSetting('targetSleepHours', v)}
+            format={h => `${h}h`}
+          />
+          <SettingToggle
+            label="Irregular Schedule Mode"
+            desc="Optimises timing for shift workers and frequent travellers"
+            value={settings.irregularSchedule}
+            onChange={v => updateSetting('irregularSchedule', v)}
+          />
+        </SettingSection>
+
+        {/* ── About the app ── */}
+        <Text style={[s.sectionLabel, { marginTop:8 }]}>About the app</Text>
         {INFO_ITEMS.map(([icon, title, desc]) => (
           <InfoRow key={title} icon={icon} title={title} desc={desc} />
         ))}
 
-        {/* ── Faresone ── */}
+        {/* ── Danger zone ── */}
         {log.length > 0 && (
           <View style={{ marginTop:20, marginBottom:8 }}>
             <TouchableOpacity onPress={confirmClearLog} style={s.dangerBtn}>
@@ -345,20 +584,42 @@ const s = StyleSheet.create({
     marginTop:14, paddingTop:14,
     borderTopWidth:1, borderTopColor:T.border,
   },
-  dlmoLabel: {
-    fontSize:9, color:T.muted, letterSpacing:0.8, fontWeight:'600',
-  },
-  dlmoTime: {
-    fontSize:24, fontWeight:'800', color:T.accent,
-  },
-  dlmoSub: {
-    fontSize:11, color:T.sub, marginTop:3,
-  },
+  dlmoLabel: { fontSize:9, color:T.muted, letterSpacing:0.8, fontWeight:'600' },
+  dlmoTime:  { fontSize:24, fontWeight:'800', color:T.accent },
+  dlmoSub:   { fontSize:11, color:T.sub, marginTop:3 },
   qualityPill: {
     backgroundColor:`${T.blue}22`, borderRadius:8,
     paddingHorizontal:7, paddingVertical:3,
   },
-  qualityPillText: {
-    fontSize:10, color:T.blue, fontWeight:'600',
+  qualityPillText: { fontSize:10, color:T.blue, fontWeight:'600' },
+
+  // Settings
+  settingSectionTitle: {
+    fontSize:10, color:T.muted, letterSpacing:1, fontWeight:'700',
+    marginBottom:8, marginLeft:4,
+  },
+  settingRow: {
+    flexDirection:'row', alignItems:'center',
+    paddingVertical:14,
+  },
+  settingBlock: {
+    paddingVertical:14,
+  },
+  settingLabel: {
+    fontSize:14, fontWeight:'600', color:T.text, marginBottom:2,
+  },
+  settingDesc: {
+    fontSize:12, color:T.muted, lineHeight:18,
+  },
+  settingDivider: {
+    height:1, backgroundColor:T.border, marginHorizontal:-18,
+  },
+  segBtn: {
+    paddingVertical:7, paddingHorizontal:14,
+    borderRadius:10, backgroundColor:T.elevated,
+    borderWidth:1, borderColor:T.border,
+  },
+  segBtnActive: {
+    backgroundColor:T.accent, borderColor:T.accent,
   },
 });

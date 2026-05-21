@@ -20,6 +20,7 @@ import {
   weeklyScore, sleepInsights,
 } from '../../src/engine/sleepEngine';
 import { Storage } from '../../src/utils/storage';
+import { loadSettings, DEFAULT_SETTINGS } from '../../src/utils/settings';
 
 const T = {
   bg:'#060914', surface:'#0C1220', elevated:'#111A2E',
@@ -270,16 +271,19 @@ export default function AnalyseScreen() {
   const [lastAnalysis, setLastAnalysis] = useState(null);
   const [showLog,      setShowLog]      = useState(false);
   const [refreshing,   setRefreshing]   = useState(false);
+  const [settings,     setSettings]     = useState(DEFAULT_SETTINGS);
   const exportRef = useRef();
 
   const loadData = useCallback(async () => {
-    const [storedLog, analysis] = await Promise.all([
+    const [storedLog, analysis, cfg] = await Promise.all([
       Storage.getLog(),
       Storage.getLastAnalysis(),
+      loadSettings(),
     ]);
     setLog(storedLog);
     setCalib(calibrateFromLog(storedLog));
     setLastAnalysis(analysis);
+    setSettings(cfg);
   }, []);
 
   const onRefresh = useCallback(async () => {
@@ -425,8 +429,8 @@ export default function AnalyseScreen() {
 
               <View style={{ flexDirection:'row', gap:10, marginBottom:12 }}>
                 {[
-                  ['THIS WEEK', formatDur(Math.round(thisWeekAvg)), thisWeekAvg >= 420 ? T.accent : thisWeekAvg >= 300 ? T.gold : T.red],
-                  ['LAST WEEK', lastWeekAvg ? formatDur(Math.round(lastWeekAvg)) : '–', lastWeekAvg >= 420 ? T.accent : lastWeekAvg >= 300 ? T.gold : T.red],
+                  ['THIS WEEK', formatDur(Math.round(thisWeekAvg)), thisWeekAvg >= settings.targetSleepHours*60 ? T.accent : thisWeekAvg >= settings.targetSleepHours*48 ? T.gold : T.red],
+                  ['LAST WEEK', lastWeekAvg ? formatDur(Math.round(lastWeekAvg)) : '–', lastWeekAvg >= settings.targetSleepHours*60 ? T.accent : lastWeekAvg >= settings.targetSleepHours*48 ? T.gold : T.red],
                   ['7H+ STREAK', `${streak}`, streak >= 3 ? T.accent : streak >= 1 ? T.gold : T.muted],
                 ].map(([l,v,c]) => (
                   <View key={l} style={s.statBox}>
@@ -623,18 +627,19 @@ export default function AnalyseScreen() {
               </View>
               {/* Trend vs recommended */}
               {chart.length >= 4 && (() => {
-                const avg30 = chart.reduce((a,e) => a + (e.sleepEnd-e.sleepStart), 0) / chart.length;
-                const vs420 = avg30 - 420;
+                const avg30    = chart.reduce((a,e) => a + (e.sleepEnd-e.sleepStart), 0) / chart.length;
+                const targetMin = settings.targetSleepHours * 60;
+                const vsTarget  = avg30 - targetMin;
                 return (
                   <View style={{ marginTop:10, paddingTop:10, borderTopWidth:1, borderTopColor:T.border }}>
                     <Text style={{ fontSize:11, color:T.sub }}>
                       Your {chart.length}-night average: {' '}
-                      <Text style={{ fontWeight:'700', color: avg30>=420?T.accent:avg30>=300?T.gold:T.red }}>
+                      <Text style={{ fontWeight:'700', color: avg30>=targetMin?T.accent:avg30>=targetMin*0.8?T.gold:T.red }}>
                         {formatDur(Math.round(avg30))}
                       </Text>
                       {'  '}
-                      <Text style={{ color: vs420>=0?T.accent:T.red }}>
-                        {vs420>=0?'+':''}{formatDur(Math.abs(Math.round(vs420)))} vs recommended 7h
+                      <Text style={{ color: vsTarget>=0?T.accent:T.red }}>
+                        {vsTarget>=0?'+':''}{formatDur(Math.abs(Math.round(vsTarget)))} vs goal {settings.targetSleepHours}h
                       </Text>
                     </Text>
                   </View>

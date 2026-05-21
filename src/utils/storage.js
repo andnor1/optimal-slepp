@@ -4,17 +4,19 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const KEYS = {
-  LOG:              'sleeplog_v2',
-  WINDOWS:          'sleep_windows',
-  LAST_WOKE:        'last_woke',
-  ONBOARDED:        'onboarded',
-  USERNAME:         'username',
-  ALARMS:           'active_alarms',
-  ALARM_ON:         'alarm_enabled',
-  LAST_ANALYSIS:    'last_analysis',
-  NAP_LOG:          'nap_log',
-  COACHING_STATE:   'coaching_state',
-  COACHING_NOTIF:   'coaching_notif_date',
+  LOG:                  'sleeplog_v2',
+  WINDOWS:              'sleep_windows',
+  LAST_WOKE:            'last_woke',
+  ONBOARDED:            'onboarded',
+  USERNAME:             'username',
+  ALARMS:               'active_alarms',
+  ALARM_ON:             'alarm_enabled',
+  LAST_ANALYSIS:        'last_analysis',
+  NAP_LOG:              'nap_log',
+  COACHING_STATE:       'coaching_state',
+  COACHING_NOTIF:       'coaching_notif_date',
+  BEDTIME_NOTIF_ID:     'bedtime_notif_id',
+  WEEKLY_REPORT_NOTIF:  'weekly_report_notif_id',
 };
 
 export const Storage = {
@@ -94,6 +96,24 @@ export const Storage = {
   },
   async saveCoachingState(state) {
     await AsyncStorage.setItem(KEYS.COACHING_STATE, JSON.stringify(state));
+  },
+
+  // Bedtime reminder notification ID
+  async getBedtimeNotifId() {
+    return AsyncStorage.getItem(KEYS.BEDTIME_NOTIF_ID);
+  },
+  async saveBedtimeNotifId(id) {
+    if (id) await AsyncStorage.setItem(KEYS.BEDTIME_NOTIF_ID, id);
+    else await AsyncStorage.removeItem(KEYS.BEDTIME_NOTIF_ID);
+  },
+
+  // Weekly report notification ID
+  async getWeeklyReportNotifId() {
+    return AsyncStorage.getItem(KEYS.WEEKLY_REPORT_NOTIF);
+  },
+  async saveWeeklyReportNotifId(id) {
+    if (id) await AsyncStorage.setItem(KEYS.WEEKLY_REPORT_NOTIF, id);
+    else await AsyncStorage.removeItem(KEYS.WEEKLY_REPORT_NOTIF);
   },
 
   // Coaching daily notification – stores last date we scheduled

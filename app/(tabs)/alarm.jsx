@@ -12,6 +12,7 @@ import { useSleepRecorder } from '../../src/hooks/useSleepRecorder';
 import { useSmartAlarm }    from '../../src/hooks/useSmartAlarm';
 import { minToTime, formatDur } from '../../src/engine/sleepEngine';
 import { Storage } from '../../src/utils/storage';
+import { loadSettings, DEFAULT_SETTINGS } from '../../src/utils/settings';
 import { isHealthAvailable, requestHealthPermissions } from '../../src/utils/healthKit';
 import TimePicker from '../../src/components/TimePicker';
 
@@ -33,14 +34,21 @@ export default function AlarmScreen() {
   const alarm    = useSmartAlarm();
 
   const [newTime,      setNewTime]      = useState('07:00');
-  const [smartWake,    setSmartWake]    = useState(true);
-  const [smartMins,    setSmartMins]    = useState(30);
+  const [smartWake,    setSmartWake]    = useState(DEFAULT_SETTINGS.smartAlarm);
+  const [smartMins,    setSmartMins]    = useState(DEFAULT_SETTINGS.smartWakeWindow);
   const [morningReport,setMorningReport]= useState(null); // { wakeTime, wasSmartWake, lastLog }
+  const [settings,     setSettings]    = useState(DEFAULT_SETTINGS);
   const snoozeTimerRef = useRef(null);
 
-  // Load persisted alarms on focus
+  // Load persisted alarms and settings on focus
   useFocusEffect(useCallback(() => {
-    Storage.getAlarms().then(saved => { if (saved.length) alarm.setAlarms(saved); });
+    (async () => {
+      const [saved, cfg] = await Promise.all([Storage.getAlarms(), loadSettings()]);
+      if (saved.length) alarm.setAlarms(saved);
+      setSettings(cfg);
+      setSmartWake(cfg.smartAlarm);
+      setSmartMins(cfg.smartWakeWindow);
+    })();
   }, []));
 
   // Cleanup snooze timer on unmount
@@ -284,8 +292,16 @@ export default function AlarmScreen() {
           </View>
         )}
 
-        {/* ── Søvnopptak ── */}
-        <View style={[styles.card, {
+        {/* ── Sleep Recording (only shown when nightRecording enabled in Settings) ── */}
+        {!settings.nightRecording && (
+          <View style={[styles.card, { marginBottom:16, borderColor:`${T.gold}30`, backgroundColor:'rgba(240,185,82,.06)' }]}>
+            <Text style={{ fontSize:13, fontWeight:'600', color:T.gold, marginBottom:4 }}>🎤 Night Recording disabled</Text>
+            <Text style={{ fontSize:12, color:T.muted, lineHeight:18 }}>
+              Enable <Text style={{ color:T.sub, fontWeight:'600' }}>Night Recording</Text> in Profile → Settings to analyse sleep depth.
+            </Text>
+          </View>
+        )}
+        {settings.nightRecording && <View style={[styles.card, {
           backgroundColor: recorder.isRecording ? T.accentLo : T.surface,
           borderColor: recorder.isRecording ? `${T.accent}40` : T.border,
           marginBottom:16,
@@ -364,7 +380,7 @@ export default function AlarmScreen() {
               <Text style={{ fontSize:9, color:T.muted, marginTop:4 }}>LIVE AUDIO LEVEL – LAST 5 MIN</Text>
             </>
           )}
-        </View>
+        </View>}
 
         {/* ── Analyseresultat ── */}
         {recorder.analysis && (
